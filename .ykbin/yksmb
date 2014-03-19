@@ -1,0 +1,34 @@
+#/bin/sh
+
+IP=192.168.4.144
+SHAREFILE=Share
+PASSWD=linux123
+USER=ykli
+
+if [ "mkboot" = "$1" ]
+then 
+	./build/scripts/mkbootimg.sh $2
+	cd out/target/product/$2
+	smbclient //$IP/$SHAREFILE $PASSED $USER -c "put boot.img"
+	cd -
+elif [ "pull" = "$1" ]
+then	
+	echo $2
+	smbclient //$IP/$SHAREFILE $PASSED $USER -c " get `echo $2` "
+elif [ "push" = "$1" ]
+then
+	echo $2
+	cd `dirname $2`
+	smbclient //$IP/$SHAREFILE $PASSED $USER -c "put `echo $2 | sed 's!.*/!!' `"
+elif [ "edit" = "$1" ]
+then
+	smbclient //$IP/$SHAREFILE $PASSED $USER
+else 
+	echo "Usage: yksmb [command] [argument]"
+	echo "eg:"
+	echo "	yksmb mkboot npm701"
+	echo "	yksmb pull boot.img"
+	echo "	yksmb push out/target/product/npm703/system/bin/vold"
+	echo "	yksmb edit"
+fi
+	

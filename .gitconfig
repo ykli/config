@@ -1,0 +1,13 @@
+[user]
+	name = ykli
+	email = ykli@ingenic.cn
+[core]
+	Editor = emacs
+[merge]
+	tool = meld
+[color]
+	ui = auto
+[alias]
+	st = status
+	br = branch
+	co = checkout
