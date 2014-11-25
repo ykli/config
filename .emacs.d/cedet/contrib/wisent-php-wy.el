@@ -2,8 +2,8 @@
 
 ;; Copyright (C) 2008 Free Software Foundation
 
-;; Author: dsqiu <dsqiu@dsqiu-laptop>
-;; Created: 2009-12-19 10:40:30+0800
+;; Author:  <ykli@user-Lenovo-E4430>
+;; Created: 2014-11-20 00:22:20+0800
 ;; Keywords: syntax
 ;; X-RCS: $Id$
 

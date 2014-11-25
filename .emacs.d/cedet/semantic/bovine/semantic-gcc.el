@@ -1,9 +1,9 @@
 ;;; semantic-gcc.el --- gcc querying special code for the C parser
 
-;; Copyright (C) 2008, 2009 Eric M. Ludlam
+;; Copyright (C) 2008, 2009, 2010 Eric M. Ludlam
 
 ;; Author: Eric M. Ludlam <eric@siege-engine.com>
-;; X-RCS: $Id: semantic-gcc.el,v 1.18 2009/08/28 12:29:00 davenar Exp $
+;; X-RCS: $Id: semantic-gcc.el,v 1.19 2010-03-15 13:40:55 xscript Exp $
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -29,36 +29,37 @@
 ;;; Code:
 
 (defun semantic-gcc-query (gcc-cmd &rest gcc-options)
-  "Return program output to both standard output and standard error.
+  "Return program output or error code in case error happens.
 GCC-CMD is the program to execute and GCC-OPTIONS are the options
 to give to the program."
   ;; $ gcc -v
   ;;
-  (let ((buff (get-buffer-create " *gcc-query*"))
-        (old-lc-messages (getenv "LC_ALL")))
-    (save-excursion
-      (set-buffer buff)
+  (let* ((buff (get-buffer-create " *gcc-query*"))
+         (old-lc-messages (getenv "LC_ALL"))
+         (options `(,nil ,(cons buff t) ,nil ,@gcc-options))
+         (err 0))
+    (with-current-buffer buff
       (erase-buffer)
       (setenv "LC_ALL" "C")
       (condition-case nil
-          (apply 'call-process gcc-cmd nil (cons buff t) nil gcc-options)
+          (setq err (apply 'call-process gcc-cmd options))
         (error ;; Some bogus directory for the first time perhaps?
          (let ((default-directory (expand-file-name "~/")))
            (condition-case nil
-               (apply 'call-process gcc-cmd nil (cons buff t) nil gcc-options)
+               (setq err (apply 'call-process gcc-cmd options))
              (error ;; gcc doesn't exist???
               nil)))))
       (setenv "LC_ALL" old-lc-messages)
       (prog1
-          (buffer-string)
-        (kill-buffer buff)
-        )
-      )))
+          (if (zerop err)
+              (buffer-string)
+            err)
+        (kill-buffer buff)))))
 
 ;;(semantic-gcc-get-include-paths "c")
 ;;(semantic-gcc-get-include-paths "c++")
 (defun semantic-gcc-get-include-paths (lang)
-  "Return include paths as gcc use them for language LANG."
+  "Return include paths as gcc uses them for language LANG."
   (let* ((gcc-cmd (cond
                    ((string= lang "c") "gcc")
                    ((string= lang "c++") "c++")
@@ -134,9 +135,9 @@ to give to the program."
   "The GCC setup data.
 This is setup by `semantic-gcc-setup'.
 This is an alist, and should include keys of:
-  'version - The version of gcc
-  '--host  - The host symbol.  (Used in include directories)
-  '--prefix - Where GCC was installed.
+  'version - the version of gcc
+  '--host  - the host symbol (used in include directories)
+  '--prefix - where GCC was installed.
 It should also include other symbols GCC was compiled with.")
 
 ;;;###autoload
@@ -145,7 +146,14 @@ It should also include other symbols GCC was compiled with.")
   (interactive)
   (let* ((fields (or semantic-gcc-setup-data
                      (semantic-gcc-fields (semantic-gcc-query "gcc" "-v"))))
-         (defines (semantic-cpp-defs (semantic-gcc-query "cpp" "-E" "-dM" "-x" "c++" null-device)))
+         (cpp-options `("-E" "-dM" "-x" "c++" ,null-device))
+         (query (let ((q (apply 'semantic-gcc-query "cpp" cpp-options)))
+                  (if (stringp q)
+                      q
+                    ;; `cpp' command in `semantic-gcc-setup' doesn't work on
+                    ;; Mac, try `gcc'.
+                    (apply 'semantic-gcc-query "gcc" cpp-options))))
+         (defines (semantic-cpp-defs query))
          (ver (cdr (assoc 'version fields)))
          (host (or (cdr (assoc 'target fields))
                    (cdr (assoc '--target fields))
@@ -153,28 +161,32 @@ It should also include other symbols GCC was compiled with.")
          (prefix (cdr (assoc '--prefix fields)))
          ;; gcc output supplied paths
          (c-include-path (semantic-gcc-get-include-paths "c"))
-         (c++-include-path (semantic-gcc-get-include-paths "c++")))
+         (c++-include-path (semantic-gcc-get-include-paths "c++"))
+	 (gcc-exe (locate-file "gcc" exec-path exec-suffixes 'executable))
+	 )
     ;; Remember so we don't have to call GCC twice.
     (setq semantic-gcc-setup-data fields)
-    (unless c-include-path
+    (when (and (not c-include-path) gcc-exe)
       ;; Fallback to guesses
       (let* ( ;; gcc include dirs
-             (gcc-exe (locate-file "gcc" exec-path exec-suffixes 'executable))
              (gcc-root (expand-file-name ".." (file-name-directory gcc-exe)))
              (gcc-include (expand-file-name "include" gcc-root))
              (gcc-include-c++ (expand-file-name "c++" gcc-include))
              (gcc-include-c++-ver (expand-file-name ver gcc-include-c++))
              (gcc-include-c++-ver-host (expand-file-name host gcc-include-c++-ver)))
         (setq c-include-path
-              (remove-if-not 'file-accessible-directory-p
-                             (list "/usr/include" gcc-include)))
+              ;; Replace cl-function remove-if-not.
+              (delq nil (mapcar (lambda (d)
+                                  (if (file-accessible-directory-p d) d))
+                                (list "/usr/include" gcc-include))))
         (setq c++-include-path
-              (remove-if-not 'file-accessible-directory-p
-                             (list "/usr/include"
-                                   gcc-include
-                                   gcc-include-c++
-                                   gcc-include-c++-ver
-                                   gcc-include-c++-ver-host)))))
+              (delq nil (mapcar (lambda (d)
+                                  (if (file-accessible-directory-p d) d))
+                                (list "/usr/include"
+                                      gcc-include
+                                      gcc-include-c++
+                                      gcc-include-c++-ver
+                                      gcc-include-c++-ver-host))))))
 
     ;;; Fix-me: I think this part might have been a misunderstanding, but I am not sure.
     ;; If this option is specified, try it both with and without prefix, and with and without host
@@ -190,20 +202,24 @@ It should also include other symbols GCC was compiled with.")
       (semantic-add-system-include D 'c-mode))
     (dolist (D (semantic-gcc-get-include-paths "c++"))
       (semantic-add-system-include D 'c++-mode)
-      (let ((cppconfig (concat D "/bits/c++config.h")))
-        ;; Presumably there will be only one of these files in the try-paths list...
-        (when (file-readable-p cppconfig)
+      (let ((cppconfig (list (concat D "/bits/c++config.h") (concat D "/sys/cdefs.h"))))
+	(dolist (cur cppconfig)
+	  ;; Presumably there will be only one of these files in the try-paths list...
+	  (when (file-readable-p cur)
           ;; Add it to the symbol file
           (if (boundp 'semantic-lex-c-preprocessor-symbol-file)
               ;; Add to the core macro header list
-              (add-to-list 'semantic-lex-c-preprocessor-symbol-file cppconfig)
+              (add-to-list 'semantic-lex-c-preprocessor-symbol-file cur)
             ;; Setup the core macro header
-            (setq semantic-lex-c-preprocessor-symbol-file (list cppconfig)))
-          )))
+            (setq semantic-lex-c-preprocessor-symbol-file (list cur)))
+          ))))
     (if (not (boundp 'semantic-lex-c-preprocessor-symbol-map))
         (setq semantic-lex-c-preprocessor-symbol-map nil))
     (dolist (D defines)
       (add-to-list 'semantic-lex-c-preprocessor-symbol-map D))
+    ;; Needed for parsing OS X libc
+    (when (eq system-type 'darwin)
+      (add-to-list 'semantic-lex-c-preprocessor-symbol-map '("__i386__" . "")))
     (when (featurep 'semantic-c)
       (semantic-c-reset-preprocessor-symbol-map))
     nil))

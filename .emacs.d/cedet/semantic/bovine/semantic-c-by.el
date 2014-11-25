@@ -1,9 +1,9 @@
 ;;; semantic-c-by.el --- Generated parser support file
 
-;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 Eric M. Ludlam
+;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2012 Eric M. Ludlam
 
-;; Author: dsqiu <dsqiu@dsqiu-laptop>
-;; Created: 2009-12-19 10:40:04+0800
+;; Author:  <ykli@user-Lenovo-E4430>
+;; Created: 2014-11-20 00:22:08+0800
 ;; Keywords: syntax
 ;; X-RCS: $Id$
 
@@ -48,6 +48,7 @@
      ("inline" . INLINE)
      ("virtual" . VIRTUAL)
      ("mutable" . MUTABLE)
+     ("explicit" . EXPLICIT)
      ("struct" . STRUCT)
      ("union" . UNION)
      ("enum" . ENUM)
@@ -130,6 +131,7 @@
      ("enum" summary "Enumeration Type Declaration: enum [name] { ... };")
      ("union" summary "Union Type Declaration: union [name] { ... };")
      ("struct" summary "Structure Type Declaration: struct [name] { ... };")
+     ("explicit" summary "Forbids implicit type conversion: explicit <constructor>")
      ("mutable" summary "Member Declaration Modifier: mutable <type> <name> ...")
      ("virtual" summary "Method Modifier: virtual <type> <name>(...) ...")
      ("inline" summary "Function Modifier: inline <return  type> <name>(...) {...};")
@@ -492,6 +494,12 @@
       )
      (template)
      (using)
+     (spp-include
+      ,(semantic-lambda
+	(semantic-tag
+	 (nth 0 vals)
+	 'include :inside-ns t))
+      )
      ( ;;EMPTY
       )
      ) ;; end namespacesubparts
@@ -1244,7 +1252,9 @@
 	 (nth 7 vals))
 	(nth 0 vals)
 	(nth 10 vals)
-	(nth 4 vals))
+	(list
+	 (nth 4 vals))
+	(nth 9 vals))
       )
      (opt-stars
       opt-class
@@ -1266,7 +1276,9 @@
 	 (nth 6 vals))
 	(nth 0 vals)
 	(nth 9 vals)
-	(nth 4 vals))
+	(list
+	 (nth 4 vals))
+	(nth 8 vals))
       )
      ) ;; end func-decl
 
@@ -1437,13 +1449,11 @@
       namespace-symbol
       opt-bits
       opt-array
-      opt-assign
       ,(semantic-lambda
 	(nth 2 vals)
 	(nth 0 vals)
 	(nth 3 vals)
-	(nth 4 vals)
-	(nth 5 vals))
+	(nth 4 vals))
       )
      ) ;; end varname
 
@@ -1488,19 +1498,28 @@
       )
      ) ;; end variablearg-opt-name
 
+    (varname-opt-initializer
+     (semantic-list)
+     (opt-assign)
+     ( ;;EMPTY
+      )
+     ) ;; end varname-opt-initializer
+
     (varnamelist
      (opt-ref
       varname
+      varname-opt-initializer
       punctuation
       "\\`[,]\\'"
       varnamelist
       ,(semantic-lambda
 	(cons
 	 (nth 1 vals)
-	 (nth 3 vals)))
+	 (nth 4 vals)))
       )
      (opt-ref
       varname
+      varname-opt-initializer
       ,(semantic-lambda
 	(list
 	 (nth 1 vals)))
@@ -1982,6 +2001,15 @@
 	  "*"
 	  (nth 2 vals))))
       )
+     (open-paren
+      "("
+      symbol
+      close-paren
+      ")"
+      ,(semantic-lambda
+	(list
+	 (nth 1 vals)))
+      )
      ) ;; end function-pointer
 
     (fun-or-proto-end
@@ -2112,74 +2140,64 @@
       "\\`[&]\\'")
      ) ;; end expr-start
 
+    (expr-binop
+     (punctuation
+      "\\`[-]\\'")
+     (punctuation
+      "\\`[+]\\'")
+     (punctuation
+      "\\`[*]\\'")
+     (punctuation
+      "\\`[/]\\'")
+     (punctuation
+      "\\`[&]\\'"
+      punctuation
+      "\\`[&]\\'")
+     (punctuation
+      "\\`[&]\\'")
+     (punctuation
+      "\\`[|]\\'"
+      punctuation
+      "\\`[|]\\'")
+     (punctuation
+      "\\`[|]\\'")
+     ) ;; end expr-binop
+
     (expression
-     (number
+     (unaryexpression
+      expr-binop
+      unaryexpression
       ,(semantic-lambda
 	(list
 	 (identity start)
 	 (identity end)))
       )
-     (multi-stage-dereference
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (NEW
-      multi-stage-dereference
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (NEW
-      builtintype-types
-      semantic-list
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (namespace-symbol
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (string-seq
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (type-cast
-      expression
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (semantic-list
-      expression
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (semantic-list
-      ,(semantic-lambda
-	(list
-	 (identity start)
-	 (identity end)))
-      )
-     (expr-start
-      expression
+     (unaryexpression
       ,(semantic-lambda
 	(list
 	 (identity start)
 	 (identity end)))
       )
      ) ;; end expression
+
+    (unaryexpression
+     (number)
+     (multi-stage-dereference)
+     (NEW
+      multi-stage-dereference)
+     (NEW
+      builtintype-types
+      semantic-list)
+     (namespace-symbol)
+     (string-seq)
+     (type-cast
+      expression)
+     (semantic-list
+      expression)
+     (semantic-list)
+     (expr-start
+      expression)
+     ) ;; end unaryexpression
     )
   "Parser table.")
 

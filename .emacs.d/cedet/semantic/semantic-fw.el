@@ -1,8 +1,8 @@
 ;;; semantic-fw.el --- Framework for Semantic
 
-;;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 Eric M. Ludlam
+;;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011 Eric M. Ludlam
 
-;; X-CVS: $Id: semantic-fw.el,v 1.82 2009/10/01 01:56:54 zappo Exp $
+;; X-CVS: $Id: semantic-fw.el,v 1.85 2010-05-04 23:25:34 zappo Exp $
 
 ;; This file is not part of GNU Emacs.
 
@@ -104,7 +104,6 @@
   (defalias 'semantic-overlay-buffer          'overlay-buffer)
   (defalias 'semantic-overlay-start           'overlay-start)
   (defalias 'semantic-overlay-end             'overlay-end)
-  (defalias 'semantic-overlay-size            'overlay-size)
   (defalias 'semantic-overlay-next-change     'next-overlay-change)
   (defalias 'semantic-overlay-previous-change 'previous-overlay-change)
   (defalias 'semantic-overlay-lists           'overlay-lists)
@@ -250,17 +249,18 @@ Remove self from `post-command-hook' if it is empty."
   "Test the data cache."
   (interactive)
   (let ((data '(a b c)))
-    (save-excursion
+    (save-current-buffer
       (set-buffer (get-buffer-create " *semantic-test-data-cache*"))
-      (erase-buffer)
-      (insert "The Moose is Loose")
-      (goto-char (point-min))
-      (semantic-cache-data-to-buffer (current-buffer) (point) (+ (point) 5)
-				     data 'moose 'exit-cache-zone)
-      (if (equal (semantic-get-cache-data 'moose) data)
-	  (message "Successfully retrieved cached data.")
-	(error "Failed to retrieve cached data"))
-      )))
+      (save-excursion
+	(erase-buffer)
+	(insert "The Moose is Loose")
+	(goto-char (point-min))
+	(semantic-cache-data-to-buffer (current-buffer) (point) (+ (point) 5)
+				       data 'moose 'exit-cache-zone)
+	(if (equal (semantic-get-cache-data 'moose) data)
+	    (message "Successfully retrieved cached data.")
+	  (error "Failed to retrieve cached data"))
+	))))
 
 ;;; Obsoleting various functions & variables
 ;;
@@ -271,12 +271,12 @@ Remove self from `post-command-hook' if it is empty."
 	(intern (substring sym-name (match-end 0)))
       name)))
 
-(defun semantic-alias-obsolete (oldfnalias newfn)
+(defun semantic-alias-obsolete (oldfnalias newfn &optional when)
   "Make OLDFNALIAS an alias for NEWFN.
 Mark OLDFNALIAS as obsolete, such that the byte compiler
 will throw a warning when it encounters this symbol."
   (defalias oldfnalias newfn)
-  (make-obsolete oldfnalias newfn)
+  (make-obsolete oldfnalias newfn when)
   (when (and (function-overload-p newfn)
              (not (overload-obsoleted-by newfn))
              ;; Only throw this warning when byte compiling things.
@@ -284,7 +284,7 @@ will throw a warning when it encounters this symbol."
              byte-compile-current-file
 	     (not (string-match "cedet" byte-compile-current-file))
 	     )
-    (make-obsolete-overload oldfnalias newfn)
+    (make-obsolete-overload oldfnalias newfn when)
     (semantic-compile-warn
      "%s: `%s' obsoletes overload `%s'"
      byte-compile-current-file
@@ -292,11 +292,11 @@ will throw a warning when it encounters this symbol."
      (semantic-overload-symbol-from-function oldfnalias))
     ))
 
-(defun semantic-varalias-obsolete (oldvaralias newvar)
+(defun semantic-varalias-obsolete (oldvaralias newvar &optional when)
   "Make OLDVARALIAS an alias for variable NEWVAR.
 Mark OLDVARALIAS as obsolete, such that the byte compiler
 will throw a warning when it encounters this symbol."
-  (make-obsolete-variable oldvaralias newvar)
+  (make-obsolete-variable oldvaralias newvar when)
   (condition-case nil
       (defvaralias oldvaralias newvar)
     (error
@@ -434,6 +434,17 @@ calling this one."
   "Call `find-file-noselect' with various features turned off.
 Use this when referencing a file that will be soon deleted.
 FILE, NOWARN, RAWFILE, and WILDCARDS are passed into `find-file-noselect'"
+  ;; Hack -
+  ;; Check if we are in set-auto-mode, and if so, warn about this.
+  (when (or  (and (featurep 'emacs) (boundp 'keep-mode-if-same))
+	     (and (featurep 'xemacs) (boundp 'just-from-file-name)))
+    (let ((filename (or (and (boundp 'filename) filename)
+			"(unknown)")))
+      (message "WARNING: semantic-find-file-noselect called for \
+%s while in set-auto-mode for %s.  You should call the responsible function \
+into `mode-local-init-hook'." file filename)
+      (sit-for 1)))
+
   (let* ((recentf-exclude '( (lambda (f) t) ))
 	 ;; This is a brave statement.  Don't waste time loading in
 	 ;; lots of modes.  Especially decoration mode can waste a lot
@@ -445,6 +456,9 @@ FILE, NOWARN, RAWFILE, and WILDCARDS are passed into `find-file-noselect'"
 	 ;; whine about it either.
 	 (font-lock-maximum-size 0)
 	 (font-lock-verbose nil)
+	 ;; This forces flymake to ignore this buffer on find-file, and
+	 ;; prevents flymake processes from being started.
+	 (flymake-start-syntax-check-on-find-file nil)
 	 ;; Disable revision control
 	 (vc-handled-backends nil)
 	 ;; Don't prompt to insert a template if we visit an empty file
@@ -466,6 +480,17 @@ FILE, NOWARN, RAWFILE, and WILDCARDS are passed into `find-file-noselect'"
 	  (find-file-noselect file nowarn rawfile)
 	(find-file-noselect file nowarn rawfile wildcards)))
     ))
+
+;;; Database restriction settings
+;;
+(defmacro semanticdb-without-unloaded-file-searches (forms)
+  "Execute FORMS with `unloaded' removed from the current throttle."
+  `(let ((semanticdb-find-default-throttle
+	  (if (featurep 'semanticdb-find)
+	      (remq 'unloaded semanticdb-find-default-throttle)
+	    nil)))
+     ,forms))
+(put 'semanticdb-without-unloaded-file-searches 'lisp-indent-function 1)
 
 
 ;;; Editor goodies ;-)

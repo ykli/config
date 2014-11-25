@@ -1,10 +1,10 @@
 ;;; semanticdb-global.el --- Semantic database extensions for GLOBAL
 
-;;; Copyright (C) 2002, 2003, 2004, 2005, 2006, 2008, 2009 Eric M. Ludlam
+;;; Copyright (C) 2002, 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 Eric M. Ludlam
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: tags
-;; X-RCS: $Id: semanticdb-global.el,v 1.10 2009/09/29 01:32:34 zappo Exp $
+;; X-RCS: $Id: semanticdb-global.el,v 1.14 2010-07-25 00:01:04 zappo Exp $
 
 ;; This file is not part of GNU Emacs.
 
@@ -39,45 +39,54 @@
   )
 ;;; Code:
 ;;;###autoload
-(defun semanticdb-enable-gnu-global-databases (mode)
+(defun semanticdb-enable-gnu-global-databases (mode &optional noerror)
   "Enable the use of the GNU Global SemanticDB back end for all files of MODE.
 This will add an instance of a GNU Global database to each buffer
-in a GNU Global supported hierarchy."
+in a GNU Global supported hierarchy.
+
+Two sanity checks are performed to assure (a) that GNU global program exists
+and (b) that the GNU global program version is compatibility with the database
+version.  If optional NOERROR is nil, then an error may be signalled on version
+mismatch.  If NOERROR is not nil, then no error will be signlled.  Instead
+return value will indicate success or failure with non-nil or nil respective
+values."
   (interactive
    (list (completing-read
-          "Emable in Mode: " obarray
+          "Enable in Mode: " obarray
           #'(lambda (s) (get s 'mode-local-symbol-table))
           t (symbol-name major-mode))))
 
   ;; First, make sure the version is ok.
-  (cedet-gnu-global-version-check)
+  (if (not (cedet-gnu-global-version-check noerror))
+      nil
+    ;; Make sure mode is a symbol.
+    (when (stringp mode)
+      (setq mode (intern mode)))
 
-  ;; Make sure mode is a symbol.
-  (when (stringp mode)
-    (setq mode (intern mode)))
-
-  (let ((ih (mode-local-value mode 'semantic-init-mode-hook)))
-    (eval `(setq-mode-local
-	    ,mode semantic-init-mode-hook
-	    (cons 'semanticdb-enable-gnu-global-hook ih))))
-
+    (let ((ih (mode-local-value mode 'semantic-init-mode-hook)))
+      (eval `(setq-mode-local
+              ,mode semantic-init-mode-hook
+              (cons 'semanticdb-enable-gnu-global-hook ih))))
+    t
+    )
   )
 
 (defun semanticdb-enable-gnu-global-hook ()
-  "Add support for GNU Global in the current buffer via semantic-init-hook.
-MODE is the major mode to support."
+  "Add support for GNU Global in the current buffer via `semantic-init-hook'."
   (semanticdb-enable-gnu-global-in-buffer t))
 
 (defclass semanticdb-project-database-global
   ;; @todo - convert to one DB per directory.
   (semanticdb-project-database eieio-instance-tracker)
+
+  ;; @todo - use instance tracker symbol.
   ()
   "Database representing a GNU Global tags file.")
 
 (defun semanticdb-enable-gnu-global-in-buffer (&optional dont-err-if-not-available)
   "Enable a GNU Global database in the current buffer.
-Argument DONT-ERR-IF-NOT-AVAILABLE will throw an error if GNU Global
-is not available for this directory."
+When GNU Global is not available for this directory, display a message
+if optional DONT-ERR-IF-NOT-AVAILABLE is non-nil; else throw an error."
   (interactive "P")
   (if (cedet-gnu-global-root)
       (setq
@@ -91,7 +100,7 @@ is not available for this directory."
 	       '(omniscience))
        )
     (if dont-err-if-not-available
-	(message "No Global support in %s" default-directory)
+	nil; (message "No Global support in %s" default-directory)
       (error "No Global support in %s" default-directory))
     ))
 
@@ -101,9 +110,14 @@ is not available for this directory."
    )
   "A table for returning search results from GNU Global.")
 
+(defmethod object-print ((obj semanticdb-table-global) &rest strings)
+  "Pretty printer extension for `semanticdb-table-global'.
+Adds the number of tags in this file to the object print name."
+  (apply 'call-next-method obj (cons " (proxy)" strings)))
+
 (defmethod semanticdb-equivalent-mode ((table semanticdb-table-global) &optional buffer)
   "Return t, pretend that this table's mode is equivalent to BUFFER.
-Equivalent modes are specified by by `semantic-equivalent-major-modes'
+Equivalent modes are specified by the `semantic-equivalent-major-modes'
 local variable."
   ;; @todo - hack alert!
   t)
@@ -166,7 +180,7 @@ Return a list of tags."
 
 (defmethod semanticdb-find-tags-for-completion-method
   ((table semanticdb-table-global) prefix &optional tags)
-  "In TABLE, find all occurances of tags matching PREFIX.
+  "In TABLE, find all occurrences of tags matching PREFIX.
 Optional argument TAGS is a list of tags to search.
 Returns a table of all matching tags."
   (if tags (call-next-method)
@@ -193,7 +207,7 @@ Returns a table of all matching tags."
 (defmethod semanticdb-deep-find-tags-by-name-method
   ((table semanticdb-table-global) name &optional tags)
   "Find all tags name NAME in TABLE.
-Optional argument TAGS is a list of tags t
+Optional argument TAGS is a list of tags to search.
 Like `semanticdb-find-tags-by-name-method' for global."
   (semanticdb-find-tags-by-name-method table name tags))
 
@@ -206,7 +220,7 @@ Like `semanticdb-find-tags-by-name-method' for global."
 
 (defmethod semanticdb-deep-find-tags-for-completion-method
   ((table semanticdb-table-global) prefix &optional tags)
-  "In TABLE, find all occurances of tags matching PREFIX.
+  "In TABLE, find all occurrences of tags matching PREFIX.
 Optional argument TAGS is a list of tags to search.
 Like `semanticdb-find-tags-for-completion-method' for global."
   (semanticdb-find-tags-for-completion-method table prefix tags))

@@ -17,12 +17,12 @@ LOADPATH= ./
 LOADDEFS=cedet-loaddefs.el
 LOADDIRS=.
 init_LISP=cedet-load.el
-EMACS=emacs
 EMACSFLAGS=-batch --no-site-file
 setup_LISP=cedet.el
-common_LISP=cedet-autogen.el cedet-compat.el ezimage.el inversion.el pprint.el fame.el working.el cedet-edebug.el mode-local.el cedet-files.el pulse.el data-debug.el cedet-global.el cedet-idutils.el cedet-cscope.el cedet-graphviz.el
+common_LISP=cedet-autogen.el cedet-compat.el ezimage.el inversion.el pprint.el fame.el working.el cedet-edebug.el mode-local.el cedet-files.el pulse.el data-debug.el cedet-global.el cedet-idutils.el cedet-cscope.el cedet-graphviz.el cedet-android.el cedet-java.el cedet-m3.el
+ELISPPRELOAD= cedet-compat.el
 tests_LISP=cedet-utests.el
-VERSION=1.0pre7
+VERSION=1.1
 DISTDIR=$(top)common-$(VERSION)
 
 
@@ -64,6 +64,9 @@ common: $(common_LISP)
 	@echo "(add-to-list 'load-path nil)" > $@-compile-script
 	for loadpath in . ${LOADPATH}; do \
 	   echo "(add-to-list 'load-path \"$$loadpath\")" >> $@-compile-script; \
+	done;
+	for preload in ${ELISPPRELOAD}; do \
+	   echo "(load \"$$preload\")" >> $@-compile-script; \
 	done;
 	@echo "(setq debug-on-error t)" >> $@-compile-script
 	"$(EMACS)" $(EMACSFLAGS) -l $@-compile-script -f batch-byte-compile $^

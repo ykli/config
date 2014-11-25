@@ -60,6 +60,14 @@ int tail_fcn(int q);
 
 int __gthrw_foo (int arg1) { }
 
+/* TEST: multiple concatenations */
+
+class mymodule_some_foo_thing_bar;
+
+/* TEST: typedef'ed concatenations */
+
+typedef foo_moose__bar mymoose_type;
+
 /* TEST: macros using macros */
 int foo;
 
@@ -98,6 +106,12 @@ int MACROA () {
 
 /* TEST: Fancy concat/recursive macros */
 int ABtest;
+
+/* TEST: Macro Recursion limits in arguments to a macro. 
+ * This code is from ALSA, noticed by Yupeng. */
+struct mr_moose_ops {
+  int (*mr_moose_disconnect)(struct mr_moose *dev);
+};
 
 
 /* End */

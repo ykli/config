@@ -1,10 +1,10 @@
 ;;; semantic-complete.el --- Routines for performing tag completion
 
-;;; Copyright (C) 2003, 2004, 2005, 2007, 2008, 2009 Eric M. Ludlam
+;;; Copyright (C) 2003, 2004, 2005, 2007, 2008, 2009, 2010, 2012 Eric M. Ludlam
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
 ;; Keywords: syntax
-;; X-RCS: $Id: semantic-complete.el,v 1.65 2009/11/22 13:56:56 zappo Exp $
+;; X-RCS: $Id: semantic-complete.el,v 1.71 2010-06-06 15:46:08 zappo Exp $
 
 ;; This file is not part of GNU Emacs.
 
@@ -109,6 +109,7 @@
 ;; `semantic-complete-inline-tag-engine' will complete text in
 ;; a buffer.
 
+(eval-when-compile (require 'cl))
 (require 'eieio)
 (require 'semantic-tag)
 (require 'semantic-find)
@@ -211,7 +212,7 @@ Keeps STRINGS only in the history.")
 						    default-tag initial-input
 						    history)
   "Read a semantic tag, and return a tag for the selection.
-Argument COLLECTOR is an object which can be used to to calculate
+Argument COLLECTOR is an object which can be used to calculate
 a list of possible hits.  See `semantic-completion-collector-engine'
 for details on COLLECTOR.
 Argument DISPLAYOR is an object used to display a list of possible
@@ -407,7 +408,7 @@ Return value can be:
 
 ;;; Keybindings
 ;;
-;; Keys are bound to to perform completion using our mechanisms.
+;; Keys are bound to perform completion using our mechanisms.
 ;; Do that work here.
 (defun semantic-complete-done ()
   "Accept the current input."
@@ -532,7 +533,7 @@ if INLINE, then completion is happening inline in a buffer."
 	  ;; when experimenting with the completion engine.  I don't
 	  ;; remember what the problem was though, and I wasn't sure why
 	  ;; the below two lines were there since they obviously added
-	  ;; some odd behavior.  -EML	  
+	  ;; some odd behavior.  -EML
 	  ;(and (not (eq na 'displayend))
 	  ;     (semantic-collector-current-exact-match collector))
 	  (semantic-collector-all-completions collector contents))
@@ -569,10 +570,9 @@ if INLINE, then completion is happening inline in a buffer."
     (define-key km "\C-g" 'semantic-complete-inline-quit)
     (define-key km "?"
       (lambda () (interactive)
-	(describe-variable 'semantic-complete-inline-map)))
+        (describe-variable 'semantic-complete-inline-map)))
     km)
-  "Keymap used while performing Semantic inline completion.
-\\{semantic-complete-inline-map}")
+  "Keymap used while performing Semantic inline completion.")
 
 (defface semantic-complete-inline-face
   '((((class color) (background dark))
@@ -753,7 +753,7 @@ DO NOT CALL THIS IF THE INLINE COMPLETION ENGINE IS NOT ACTIVE."
 (defun semantic-complete-inline-tag-engine
   (collector displayor buffer start end)
   "Perform completion based on semantic tags in a buffer.
-Argument COLLECTOR is an object which can be used to to calculate
+Argument COLLECTOR is an object which can be used to calculate
 a list of possible hits.  See `semantic-completion-collector-engine'
 for details on COLLECTOR.
 Argument DISPLAYOR is an object used to display a list of possible
@@ -926,7 +926,7 @@ of a completion."
 
 (defmethod semantic-collector-next-action
   ((obj semantic-collector-abstract) partial)
-  "What should we do next?  OBJ can predict a next good action.
+  "What should we do next?  OBJ can be used to determine the next action.
 PARTIAL indicates if we are doing a partial completion."
   (if (and (slot-boundp obj 'last-completion)
 	   (string= (semantic-completion-text) (oref obj last-completion)))
@@ -966,8 +966,7 @@ Calculate the cache if there isn't one."
   "Calculate the completions for prefix from completionlist.
 Output must be in semanticdb Find result format."
   ;; Must output in semanticdb format
-  (let ((table (save-excursion
-		 (set-buffer (oref obj buffer))
+  (let ((table (with-current-buffer (oref obj buffer)
 		 semanticdb-current-table))
 	(result (semantic-find-tags-for-completion
 		 prefix
@@ -983,21 +982,37 @@ Output must be in semanticdb Find result format."
   "Calculate completions for prefix as setup for other queries."
   (let* ((case-fold-search semantic-case-fold)
 	 (same-prefix-p (semantic-collector-last-prefix= obj prefix))
+	 (last-prefix (and (slot-boundp obj 'last-prefix)
+			   (oref obj last-prefix)))
 	 (completionlist
-	  (if (or same-prefix-p
-		  (and (slot-boundp obj 'last-prefix)
-		       (eq (compare-strings (oref obj last-prefix) 0 nil
-					    prefix 0 (length prefix))
-			   t)))
-	      ;; New prefix is subset of old prefix
-	      (oref obj last-all-completions)
-	    (semantic-collector-get-cache obj)))
+	  (cond ((or same-prefix-p
+		     (and last-prefix (eq (compare-strings
+					   last-prefix 0 nil
+					   prefix 0 (length last-prefix)) t)))
+		 ;; We have the same prefix, or last-prefix is a
+		 ;; substring of the of new prefix, in which case we are
+		 ;; refining our symbol so just re-use cache.
+		 (oref obj last-all-completions))
+		((and last-prefix
+		      (> (length prefix) 1)
+		      (eq (compare-strings
+			   prefix 0 nil
+			   last-prefix 0 (length prefix)) t))
+		   ;; The new prefix is a substring of the old
+		   ;; prefix, and it's longer than one character.
+		   ;; Perform a full search to pull in additional
+		   ;; matches.
+		 (let ((context (semantic-analyze-current-context (point))))
+		   (setq semantic-completion-collector-engine
+			 (semantic-collector-analyze-completions
+			  "inline" :buffer (oref context buffer) :context context))
+		   (setq obj semantic-completion-collector-engine))
+		 (semantic-collector-get-cache obj))))
 	 ;; Get the result
 	 (answer (if same-prefix-p
 		     completionlist
 		   (semantic-collector-calculate-completions-raw
-		    obj prefix completionlist))
-		 )
+		    obj prefix completionlist)))
 	 (completion nil)
 	 (complete-not-uniq nil)
 	 )
@@ -1040,7 +1055,7 @@ Output must be in semanticdb Find result format."
 
 (defmethod semantic-collector-try-completion-whitespace
   ((obj semantic-collector-abstract) prefix)
-  "For OBJ, do whatepsace completion based on PREFIX.
+  "For OBJ, do whitespace completion based on PREFIX.
 This implies that if there are two completions, one matching
 the test \"preifx\\>\", and one not, the one matching the full
 word version of PREFIX will be chosen, and that text returned.
@@ -1170,7 +1185,7 @@ NEWCACHE is the new tag table, but we ignore it."
   (semantic-collector-buffer-abstract)
   ()
   "Completion engine for tags in the current buffer.
-When searching for a tag, uses semantic  deep searche functions.
+When searching for a tag, uses semantic deep search functions.
 Basics search only in the current buffer.")
 
 (defmethod semantic-collector-calculate-cache
@@ -1218,6 +1233,27 @@ Uses semanticdb for searching all tags in the current project."
   "Calculate the completions for prefix from completionlist."
   (semanticdb-brute-deep-find-tags-for-completion prefix (oref obj path)))
 
+;;; Current Datatype member search.
+(defclass semantic-collector-local-members (semantic-collector-project-abstract)
+  ((scope :initform nil
+	  :type (or null semantic-scope-cache)
+	  :documentation
+	  "The scope the local members are being completed from."))
+  "Completion engine for tags in a project.")
+
+(defmethod semantic-collector-calculate-completions-raw
+  ((obj semantic-collector-local-members) prefix completionlist)
+  "Calculate the completions for prefix from completionlist."
+  (let* ((scope (or (oref obj scope)
+		    (oset obj scope (semantic-calculate-scope))))
+	 (localstuff (oref scope scope)))
+    (list
+     (cons
+      (oref scope :table)
+      (semantic-find-tags-for-completion prefix localstuff)))))
+    ;(semanticdb-brute-deep-find-tags-for-completion prefix (oref obj path))))
+
+;;; Smart completion collector
 (defclass semantic-collector-analyze-completions (semantic-collector-abstract)
   ((context :initarg :context
 	    :type semantic-analyze-context
@@ -1242,8 +1278,7 @@ inserted into the current context.")
 	    (semantic-analyze-possible-completions (oref obj context))))
   ;; search our cached completion list.  make it look like a semanticdb
   ;; results type.
-  (list (cons (save-excursion
-		(set-buffer (oref (oref obj context) buffer))
+  (list (cons (with-current-buffer (oref (oref obj context) buffer)
 		semanticdb-current-table)
 	      (semantic-find-tags-for-completion
 	       prefix
@@ -1256,7 +1291,7 @@ inserted into the current context.")
 ;; A typical displayor accepts a pre-determined list of completions
 ;; generated by a collector.  This format is in semanticdb search
 ;; form.  This vaguely standard form is a bit challenging to navigate
-;; because the tags do not contain buffer info, but the file assocated
+;; because the tags do not contain buffer info, but the file associated
 ;; with the tags preceed the tag in the list.
 ;;
 ;; Basic displayors don't care, and can strip the results.
@@ -1293,8 +1328,9 @@ a collector, and tracking tables of completion to display."
 (defmethod semantic-displayor-next-action ((obj semantic-displayor-abstract))
   "The next action to take on the minibuffer related to display."
   (if (and (slot-boundp obj 'last-prefix)
-	   (string= (oref obj last-prefix) (semantic-completion-text))
-	   (eq last-command this-command))
+	   (or (eq this-command 'semantic-complete-inline-TAB)
+	       (and (string= (oref obj last-prefix) (semantic-completion-text))
+		    (eq last-command this-command))))
       'scroll
     'display))
 
@@ -1478,8 +1514,7 @@ one in the source buffer."
 		   (and table (semanticdb-get-buffer table)))))
       ;; If no buffer is provided, then we can make up a summary buffer.
       (when (not buf)
-	(save-excursion
-	  (set-buffer (get-buffer-create "*Completion Focus*"))
+	(with-current-buffer (get-buffer-create "*Completion Focus*")
 	  (erase-buffer)
 	  (insert "Focus on tag: \n")
 	  (insert (semantic-format-tag-summarize tag nil t) "\n\n")
@@ -1524,32 +1559,62 @@ one in the source buffer."
 ;; * Safe compatibility for tooltip free systems.
 ;; * Don't use 'avoid package for tooltip positioning.
 
+;;;###autoload
+(defcustom semantic-displayor-tooltip-mode 'standard
+  "Mode for the tooltip inline completion.
+
+Standard: Show only `semantic-displayor-tooltip-initial-max-tags'
+number of completions initially.  Pressing TAB will show the
+extended set.
+
+Quiet: Only show completions when we have narrowed all
+posibilities down to a maximum of
+`semantic-displayor-tooltip-initial-max-tags' tags.  Pressing TAB
+multiple times will also show completions.
+
+Verbose: Always show all completions available.
+
+The absolute maximum number of completions for all mode is
+determined through `semantic-displayor-tooltip-max-tags'."
+  :group 'semantic
+  :type '(choice (const :tag "Standard" standard)
+		 (const :tag "Quiet" quiet)
+		 (const :tag "Verbose" verbose)))
+
+;;;###autoload
+(defcustom semantic-displayor-tooltip-initial-max-tags 5
+  "Maximum number of tags to be displayed initially.
+See doc-string of `semantic-displayor-tooltip-mode' for details."
+  :group 'semantic
+  :type 'integer)
+
+(defcustom semantic-displayor-tooltip-max-tags 25
+ "The maximum number of tags to be displayed.
+Maximum number of completions where we have activated the
+extended completion list through typing TAB or SPACE multiple
+times.  This limit needs to fit on your screen!
+
+Note: Customizing this variable increases 'x-max-tooltip-size' to
+force over-sized tooltips if necessary.  This will not happen if
+you directly set this variable via `setq'."
+ :group 'semantic
+ :type 'integer
+ :set '(lambda (sym var)
+            (set-default sym var)
+	    (setcdr x-max-tooltip-size (max (1+ var) (cdr x-max-tooltip-size)))))
+
+
 (defclass semantic-displayor-tooltip (semantic-displayor-traditional)
-  ((max-tags     :type integer
-		 :initarg :max-tags
-		 :initform 5
-		 :custom integer
-		 :documentation
-		 "Max number of tags displayed on tooltip at once.
-If `force-show' is 1,  this value is ignored with typing tab or space twice continuously.
-if `force-show' is 0, this value is always ignored.")
-   (force-show   :type integer
-		 :initarg :force-show
-	         :initform 1
-		 :custom (choice (const
-				  :tag "Show when double typing"
-				  1)
-				 (const
-				  :tag "Show always"
-				  0)
-				 (const
-				  :tag "Show if the number of tags is less than `max-tags'."
-				  -1))
-	         :documentation
-		 "Control the behavior of the number of tags is greater than `max-tags'.
--1 means tags are never shown.
-0 means the tags are always shown.
-1 means tags are shown if space or tab is typed twice continuously.")
+  ((mode :initarg :mode
+	 :initform
+	 (symbol-value 'semantic-displayor-tooltip-mode)
+	 :documentation
+	 "See `semantic-displayor-tooltip-mode'.")
+   (max-tags-initial :initarg max-tags-initial
+		     :initform
+		     (symbol-value 'semantic-displayor-tooltip-initial-max-tags)
+		     :documentation
+		     "See `semantic-displayor-tooltip-initial-max-tags'.")
    (typing-count :type integer
 		 :initform 0
 		 :documentation
@@ -1557,7 +1622,7 @@ if `force-show' is 0, this value is always ignored.")
    (shown        :type boolean
 		 :initform nil
 		 :documentation
-		 "Flag representing whether tags is shown once or not.")
+		 "Flag representing whether tooltip has been shown yet.")
    )
   "Display completions options in a tooltip.
 Display mechanism using tooltip for a list of possible completions.")
@@ -1577,50 +1642,63 @@ Display mechanism using tooltip for a list of possible completions.")
       (call-next-method)
     (let* ((tablelong (semanticdb-strip-find-results (oref obj table)))
 	   (table (semantic-unique-tag-table-by-name tablelong))
-	   (l (mapcar semantic-completion-displayor-format-tag-function table))
-	   (ll (length l))
+	   (completions (mapcar semantic-completion-displayor-format-tag-function table))
+	   (numcompl (length completions))
 	   (typing-count (oref obj typing-count))
-	   (force-show (oref obj force-show))
+	   (mode (oref obj mode))
+	   (max-tags (oref obj max-tags-initial))
 	   (matchtxt (semantic-completion-text))
-	   msg)
-      (if (or (oref obj shown)
-	      (< ll (oref obj max-tags))
-	      (and (<= 0 force-show)
-		   (< (1- force-show) typing-count)))
-	  (progn
-	    (oset obj typing-count 0)
-	    (oset obj shown t)
-	    (if (eq 1 ll)
-		;; We Have only one possible match.  There could be two cases.
-		;; 1) input text != single match.
-		;;    --> Show it!
-		;; 2) input text == single match.
-		;;   --> Complain about it, but still show the match.
-		(if (string= matchtxt (semantic-tag-name (car table)))
-		    (setq msg (concat "[COMPLETE]\n" (car l)))
-		  (setq msg (car l)))
-	      ;; Create the long message.
-	      (setq msg (mapconcat 'identity l "\n"))
-	      ;; If there is nothing, say so!
-	      (if (eq 0 (length msg))
-		  (setq msg "[NO MATCH]")))
-	    (semantic-displayor-tooltip-show msg))
-	;; The typing count determines if the user REALLY REALLY
-	;; wanted to show that much stuff.  Only increment
-	;; if the current command is a completion command.
-	(if (and (stringp (this-command-keys))
-		 (string= (this-command-keys) "\C-i"))
-	    (oset obj typing-count (1+ typing-count)))
-	;; At this point, we know we have too many items.
-	;; Lets be brave, and truncate l
-	(setcdr (nthcdr (oref obj max-tags) l) nil)
-	(setq msg (mapconcat 'identity l "\n"))
+	   msg msg-tail)
+      ;; Keep a count of the consecutive completion commands entered by the user.
+      (if (and (stringp (this-command-keys))
+	       (string= (this-command-keys) "\C-i"))
+	  (oset obj typing-count (1+ (oref obj typing-count)))
+	(oset obj typing-count 0))
+      (cond
+       ((eq mode 'quiet)
+	;; Switch back to standard mode if user presses key more than 5 times.
+	(when (>= (oref obj typing-count) 5)
+	  (oset obj mode 'standard)
+	  (setq mode 'standard)
+	  (message "Resetting inline-mode to 'standard'."))
+	(when (and (> numcompl max-tags)
+		   (< (oref obj typing-count) 2))
+	  ;; Discretely hint at completion availability.
+	  (setq msg "...")))
+       ((eq mode 'verbose)
+	;; Always show extended match set.
+	(oset obj max-tags semantic-displayor-tooltip-max-tags)
+	(setq max-tags semantic-displayor-tooltip-max-tags)))
+      (unless msg
+	(oset obj shown t)
 	(cond
-	 ((= force-show -1)
-	  (semantic-displayor-tooltip-show (concat msg "\n...")))
-	 ((= force-show 1)
-	  (semantic-displayor-tooltip-show (concat msg "\n(TAB for more)")))
-	 )))))
+	 ((> numcompl max-tags)
+	  ;; We have too many items, be brave and truncate 'completions'.
+	  (setcdr (nthcdr (1- max-tags) completions) nil)
+	  (if (= max-tags semantic-displayor-tooltip-initial-max-tags)
+	      (setq msg-tail (concat "\n[<TAB> " (number-to-string (- numcompl max-tags)) " more]"))
+	    (setq msg-tail (concat "\n[<n/a> " (number-to-string (- numcompl max-tags)) " more]"))
+	    (when (>= (oref obj typing-count) 2)
+	      (message "Refine search to display results beyond the '%s' limit"
+		       (symbol-name 'semantic-complete-inline-max-tags-extended)))))
+	 ((= numcompl 1)
+	  ;; two possible cases
+	  ;; 1. input text != single match - we found a unique completion!
+	  ;; 2. input text == single match - we found no additional matches, it's just the input text!
+	  (when (string= matchtxt (semantic-tag-name (car table)))
+	    (setq msg "[COMPLETE]\n")))
+	 ((zerop numcompl)
+	  (oset obj shown nil)
+	  ;; No matches, say so if in verbose mode!
+	  (when semantic-idle-scheduler-verbose-flag
+	    (setq msg "[NO MATCH]"))))
+	;; Create the tooltip text.
+	(setq msg (concat msg (mapconcat 'identity completions "\n"))))
+      ;; Add any tail info.
+      (setq msg (concat msg msg-tail))
+      ;; Display tooltip.
+      (when (not (eq msg ""))
+	(semantic-displayor-tooltip-show msg)))))
 
 ;;; Compatibility
 ;;
@@ -1638,8 +1716,10 @@ Display mechanism using tooltip for a list of possible completions.")
   "Return the location of POINT as positioned on the selected frame.
 Return a cons cell (X . Y)"
   (let* ((frame (selected-frame))
-	 (left (frame-parameter frame 'left))
-	 (top (frame-parameter frame 'top))
+	 (left (or (car-safe (cdr-safe (frame-parameter frame 'left)))
+		   (frame-parameter frame 'left)))
+         (top (or (car-safe (cdr-safe (frame-parameter frame 'top)))
+		  (frame-parameter frame 'top)))
 	 (point-pix-pos (posn-x-y (posn-at-point)))
 	 (edges (window-inside-pixel-edges (selected-window))))
     (cons (+ (car point-pix-pos) (car edges) left)
@@ -1662,7 +1742,7 @@ Return a cons cell (X . Y)"
 (defmethod semantic-displayor-scroll-request ((obj semantic-displayor-tooltip))
   "A request to for the displayor to scroll the completion list (if needed)."
   ;; Do scrolling in the tooltip.
-  (oset obj max-tags 30)
+  (oset obj max-tags-initial 30)
   (semantic-displayor-show-request obj)
   )
 
@@ -1816,6 +1896,29 @@ HISTORY is a symbol representing a variable to store the history in."
   )
 
 ;;;###autoload
+(defun semantic-complete-read-tag-local-members (prompt &optional
+							default-tag
+							initial-input
+							history)
+  "Ask for a tag by name from the local type members.
+Available tags are from the the current scope.
+Completion options are presented in a traditional way, with highlighting
+to resolve same-name collisions.
+PROMPT is a string to prompt with.
+DEFAULT-TAG is a semantic tag or string to use as the default value.
+If INITIAL-INPUT is non-nil, insert it in the minibuffer initially.
+HISTORY is a symbol representing a variable to store the history in."
+  (semantic-complete-read-tag-engine
+   (semantic-collector-local-members prompt :buffer (current-buffer))
+   (semantic-displayor-traditional-with-focus-highlight "simple")
+   ;;(semantic-displayor-tooltip "simple")
+   prompt
+   default-tag
+   initial-input
+   history)
+  )
+
+;;;###autoload
 (defun semantic-complete-read-tag-project (prompt &optional
 						  default-tag
 						  initial-input
@@ -1912,8 +2015,7 @@ prompts.  these are calculated from the CONTEXT variable passed in."
       :buffer (oref context buffer)
       :context context)
      (semantic-displayor-traditional-with-focus-highlight "simple")
-     (save-excursion
-       (set-buffer (oref context buffer))
+     (with-current-buffer (oref context buffer)
        (goto-char (cdr (oref context bounds)))
        (concat prompt (mapconcat 'identity syms ".")
 	       (if syms "." "")
@@ -2026,7 +2128,7 @@ completion works."
 (defun semantic-complete-jump ()
   "Jump to a semantic symbol."
   (interactive)
-  (let* ((tag (semantic-complete-read-tag-project "Symbol: ")))
+  (let* ((tag (semantic-complete-read-tag-project "Jump to symbol: ")))
     (when (semantic-tag-p tag)
       (push-mark)
       (semantic-go-to-tag tag)
@@ -2035,6 +2137,23 @@ completion works."
       (working-message "%S: %s "
                        (semantic-tag-class tag)
                        (semantic-tag-name  tag)))))
+
+;;;###autoload
+(defun semantic-complete-jump-local-members ()
+  "Jump to a semantic symbol."
+  (interactive)
+  (let* ((tag (semantic-complete-read-tag-local-members "Jump to symbol: ")))
+    (when (semantic-tag-p tag)
+      (let ((start (condition-case nil (semantic-tag-start tag)
+		     (error nil))))
+	(unless start
+	  (error "Tag %s has no location" (semantic-format-tag-prototype tag)))
+	(push-mark)
+	(goto-char start)
+	(semantic-momentary-highlight-tag tag)
+	(working-message "%S: %s "
+			 (semantic-tag-class tag)
+			 (semantic-tag-name  tag))))))
 
 ;;;###autoload
 (defun semantic-complete-analyze-and-replace ()
@@ -2067,13 +2186,12 @@ how completion options are displayed."
       (semantic-complete-inline-analyzer
        (semantic-analyze-current-context (point))))
   ;; Report a message if things didn't startup.
-  (if (and (interactive-p)
+  (if (and (cedet-called-interactively-p 'any)
 	   (not (semantic-completion-inline-active-p)))
       (message "Inline completion not needed.")
     ;; Since this is most likely bound to something, and not used
     ;; at idle time, throw in a TAB for good measure.
-    (semantic-complete-inline-TAB)
-    ))
+    (semantic-complete-inline-TAB)))
 
 ;;;###autoload
 (defun semantic-complete-analyze-inline-idle ()
@@ -2090,10 +2208,9 @@ to change how completion options are displayed."
       (semantic-complete-inline-analyzer-idle
        (semantic-analyze-current-context (point))))
   ;; Report a message if things didn't startup.
-  (if (and (interactive-p)
+  (if (and (cedet-called-interactively-p 'interactive)
 	   (not (semantic-completion-inline-active-p)))
-      (message "Inline completion not needed."))
-  )
+      (message "Inline completion not needed.")))
 
 ;;;###autoload
 (defun semantic-complete-self-insert (arg)
@@ -2109,39 +2226,39 @@ use `semantic-complete-analyze-inline' to complete."
 
   ;; Prepare for doing completion, but exit quickly if there is keyboard
   ;; input.
-  (when (and (not (semantic-exit-on-input 'csi
-		    (semantic-fetch-tags)
-		    (semantic-throw-on-input 'csi)
-		    nil))
-	     (= arg 1)
-	     (not (semantic-exit-on-input 'csi
-		    (semantic-analyze-current-context)
-		    (semantic-throw-on-input 'csi)
-		    nil)))
+  (when (save-window-excursion
+	  (save-excursion
+	    (and (not (semantic-exit-on-input 'csi
+			(semantic-fetch-tags)
+			(semantic-throw-on-input 'csi)
+			nil))
+		 (= arg 1)
+		 (not (semantic-exit-on-input 'csi
+			(semantic-analyze-current-context)
+			(semantic-throw-on-input 'csi)
+			nil)))))
     (condition-case nil
 	(semantic-complete-analyze-inline)
       ;; Ignore errors.  Seems likely that we'll get some once in a while.
       (error nil))
     ))
 
-;; @TODO - I can't  find where this fcn is used.  Delete?
-
 ;;;;###autoload
-;(defun semantic-complete-inline-project ()
-;  "Perform inline completion for any symbol in the current project.
-;`semantic-analyze-possible-completions' is used to determine the
-;possible values.
-;The function returns immediately, leaving the buffer in a mode that
-;will perform the completion."
-;  (interactive)
-;  ;; Only do this if we are not already completing something.
-;  (if (not (semantic-completion-inline-active-p))
-;      (semantic-complete-inline-tag-project))
-;  ;; Report a message if things didn't startup.
-;  (if (and (interactive-p)
-;	   (not (semantic-completion-inline-active-p)))
-;      (message "Inline completion not needed."))
-;  )
+(defun semantic-complete-inline-project ()
+  "Perform inline completion for any symbol in the current project.
+`semantic-analyze-possible-completions' is used to determine the
+possible values.
+The function returns immediately, leaving the buffer in a mode that
+will perform the completion."
+  (interactive)
+  ;; Only do this if we are not already completing something.
+  (if (not (semantic-completion-inline-active-p))
+      (semantic-complete-inline-tag-project))
+  ;; Report a message if things didn't startup.
+  (if (and (interactive-p)
+	   (not (semantic-completion-inline-active-p)))
+      (message "Inline completion not needed."))
+  )
 
 ;; End
 (provide 'semantic-complete)

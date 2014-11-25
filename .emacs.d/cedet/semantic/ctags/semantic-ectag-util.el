@@ -1,9 +1,9 @@
 ;;; semantic-ectag-util.el --- Utilities for Exuberent CTags and Semantic
 
-;; Copyright (C) 2008, 2009 Eric M. Ludlam
+;; Copyright (C) 2008, 2009, 2010 Eric M. Ludlam
 
 ;; Author: Eric M. Ludlam <eric@siege-engine.com>
-;; X-RCS: $Id: semantic-ectag-util.el,v 1.6 2009/05/31 11:19:45 zappo Exp $
+;; X-RCS: $Id: semantic-ectag-util.el,v 1.8 2010-04-09 02:01:20 zappo Exp $
 
 ;; This program is free software; you can redistribute it and/or
 ;; modify it under the terms of the GNU General Public License as
@@ -81,7 +81,7 @@ The returned buffer will be recycled in future calls to this function."
 ;;
 ;; Ask ctags what languages it supports, and what kinds there are.
 (defun semantic-ectag-lang-and-kinds ()
-  "Get all the langauge and kinds supported by ctags."
+  "Get all the language and kinds supported by ctags."
   (interactive)
   (let* ((b (semantic-ectag-run "--list-kinds=all"))
 	 (lang nil)
@@ -141,7 +141,7 @@ The returned buffer will be recycled in future calls to this function."
       (setq str (save-excursion
 		  (set-buffer b)
 		  (goto-char (point-min))
-		  (if (re-search-forward "Exuberant Ctags \\([0-9.]+\\)," nil t)
+		  (if (re-search-forward "Exuberant Ctags \\([0-9.]+\\)\\(~svn[0-9]+\\)?," nil t)
 		      (match-string 1)
 		    nil)
 		  )
@@ -163,7 +163,7 @@ The returned buffer will be recycled in future calls to this function."
 		   )))
 	    (message "Exuberent CTags not found.  Found %s" whatver)
 	    nil)
-	(when (interactive-p)
+	(when (cedet-called-interactively-p)
 	  (message "Detected Exuberent CTags version : %s %s"
 		   str
 		   (if ropt
@@ -188,7 +188,22 @@ The returned buffer will be recycled in future calls to this function."
 	     v semantic-ectag-min-version))
     (when (not r)
       (error "CTags was not compiled with +regex support"))
-    ))
+    t))
+
+;;;###autoload
+(defun cedet-ectag-version-check (&optional noerror)
+  "Check the version of the installed ctags command.
+If optional programatic argument NOERROR is non-nil, then
+instead of throwing an error if ctags isn't available, then
+return nil."
+  (interactive)
+  (let ((res (if noerror
+		 (condition-case nil
+		     (semantic-ectag-test-version)
+		   (error nil))
+	       (semantic-ectag-test-version))))
+    (when (and res (cedet-called-interactively-p 'interactive))
+      (message "Exuberent CTags %s  - Good enough for CEDET." (car (semantic-ectag-version))))))
 
 (provide 'semantic-ectag-util)
 ;;; semantic-ectag-util.el ends here

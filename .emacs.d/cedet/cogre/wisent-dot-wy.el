@@ -2,8 +2,8 @@
 
 ;; Copyright (C) 2003, 2004, 2009 Eric M. Ludlam
 
-;; Author: dsqiu <dsqiu@dsqiu-laptop>
-;; Created: 2009-12-19 10:40:20+0800
+;; Author:  <ykli@user-Lenovo-E4430>
+;; Created: 2014-11-20 00:22:16+0800
 ;; Keywords: syntax
 ;; X-RCS: $Id$
 

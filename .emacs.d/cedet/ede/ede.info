@@ -21,6 +21,7 @@ ways of doing things.
 
 * EDE Project Concepts::        EDE Project Concepts
 * EDE Mode::                    Turning on EDE mode.
+* Quick Start::                 Quick start to building a project.
 * Creating a project::          Creating a project.
 * Modifying your project::      Adding and removing files and targets.
 * Building and Debugging::      Initiating a build or debug session.
@@ -71,7 +72,7 @@ of search to files in a single target, or need to discover the location
 of documentation or interface files.  EDE can provide this information.
 
 
-File: ede.info,  Node: EDE Mode,  Next: Creating a project,  Prev: EDE Project Concepts,  Up: Top
+File: ede.info,  Node: EDE Mode,  Next: Quick Start,  Prev: EDE Project Concepts,  Up: Top
 
 2 EDE Mode
 **********
@@ -93,20 +94,285 @@ different types of projects are encountered, source code for those
 projects are loaded at that time.
 
 
-File: ede.info,  Node: Creating a project,  Next: Modifying your project,  Prev: EDE Mode,  Up: Top
+File: ede.info,  Node: Quick Start,  Next: Creating a project,  Prev: EDE Mode,  Up: Top
 
-3 Creating a project
+3 Quick Start
+*************
+
+Once you have EDE enabled, you can create a project.  This chapter
+provides an example C++ project that will create Automake files for
+compilation.
+
+3.1 Step 1: Create root directory
+=================================
+
+First, lets create a directory for our project.  For this example,
+we'll start with something in `/tmp'.
+
+     C-x C-f /tmp/myproject/README RET
+     M-x make-directory RET RET
+
+   Now put some plain text in your README file to start.
+
+   Now, lets create the project:
+
+     M-x ede-new RET Automake RET myproject RET
+
+   Nothing visible happened, but if you use `dired' to look at the
+directory, you should see this:
+
+       /tmp/myproject:
+       total used in directory 32 available 166643476
+       drwxr-xr-x  2 zappo users  4096 2012-02-23 22:10 .
+       drwxrwxrwt 73 root  root  20480 2012-02-23 22:10 ..
+       -rw-r--r--  1 zappo users   195 2012-02-23 22:10 Project.ede
+       -rw-r--r--  1 zappo users    10 2012-02-23 22:09 README
+
+3.2 Step 2: Create Subdirectories and Files
+===========================================
+
+We'll make a more complex project, so use dired to create some more
+directories using the `+' key, and typing in new directories:
+
+     + include RET
+     + src RET
+
+   Now I'll short-cut in this tutorial.  Create the following files:
+
+   `include/myproj.hh'
+     /** myproj.hh ---
+      */
+
+     #ifndef myproj_hh
+     #define myproj_hh 1
+
+     #define IMPORTANT_MACRO 1
+
+     int my_lib_function();
+
+     #endif // myproj_hh
+
+   `src/main.cpp'
+     /** main.cpp ---
+      */
+
+     #include <iostream>
+     #include "myproj.hh"
+
+     int main() {
+
+     }
+
+     #ifdef IMPORTANT_MACRO
+     int my_fcn() {
+
+     }
+     #endif
+
+   `src/mylib.cpp'
+     /** mylib.cpp ---
+      *
+      * Shared Library to build
+      */
+
+     int my_lib_function() {
+
+     }
+
+3.3 Step 3: Create subprojects
+==============================
+
+EDE needs subdirectories to also have projects in them.  You can now
+create those projects.
+
+   With `main.cpp' as your current buffer, type:
+
+     M-x ede-new RET Automake RET src RET
+
+   and in `myproj.hh' as your current buffer, type:
+
+     M-x ede-new RET Automake RET include RET
+
+   These steps effectively only create the Project.ede file in which you
+will start adding targets.
+
+3.4 Step 4: Create targets
+==========================
+
+In order to build a program, you must have targets in your EDE
+Projects.  You can create targets either from a buffer, or from a
+`dired' directory buffer.
+
+   Note: If for some reason a directory list buffer, or file does not
+have the `Project' menu item, or if EDE keybindings don't work, just
+use `M-x revert-buffer RET' to force a refresh.  Sometimes creating a
+new project doesn't restart buffers correctly.
+
+   Lets start with the header file.  In `include/myproj.hh', you could
+use the menu, but we will now start using the EDE command prefix which
+is `C-c .'.
+
+     C-c . t includes RET miscellaneous RET y
+
+   This creates a misc target for holding your includes, and then adds
+myproj.hh to the target.  Automake (the tool) has better ways to do
+this, but for this project, it is sufficient.
+
+   Next, visit the `src' directory using dired.  There should be a
+`Project' menu.   You can create a new target with
+
+     . t myprogram RET program RET
+
+   Note that `. t' is a command for creating a target.  This command is
+also in the menu.  This will create a target that will build a program.
+If you want, visit `Project.ede' to see the structure built so far.
+
+   Next, place the cursor on `main.cpp', and use `. a' to add that file
+to your target.
+
+     . a myprogram RET
+
+   Note that these promps often have completion, so you can just press
+`TAB' to complete the name `myprogram'.
+
+   If you had many files to add to the same target, you could mark them
+all in your dired buffer, and add them all at the same time.
+
+   Next, do the same for the library by placing the cursor on
+`mylib.cpp'.
+
+     . t mylib RET sharedobject RET
+     . a mylib RET
+
+3.5 Step 5: Compile, and fail
+=============================
+
+Next, we'll try to compile the project, but we aren't done yet, so it
+won't work right away.
+
+   Visit `/tmp/myproject/Project.ede'.  We're starting here because we
+don't have any program files in this directory yet.  Now we can use the
+compile command:
+
+     C-c . C
+
+   Because this is the very first time, it will create a bunch of files
+for you that are required by Automake.  It will then use automake to
+build the support infrastructure it needs.  This step is skipped if you
+choose just a `Makefile' build system.
+
+   After the Automake init, it runs compile.  You will immediately
+discover the error in main.cpp can't find `myproj.hh'.  We need to go
+fix this.
+
+3.6 Step 6: Customizing your project
+====================================
+
+To fix the failed compile, we need to add `/tmp/myproject/include' to
+the include path.
+
+   Visit `main.cpp'.
+
+     M-x customize-project RET
+
+   Select the `[Settings]' subgroup of options.  Under `Variable :'
+click `[INS]'.  At this point, you need to be somewhat savvy with
+Automake.  Add a variable named `CPPFLAGS', and set the value to
+`../include'.
+
+   You should see something like this:
+
+     Variables :
+     [INS] [DEL] Cons-cell:
+                 Name: AM_CPPFLAGS
+                 Value: -I../include
+     [INS]
+     Variables to set in this Makefile.
+
+   Click `[Apply]'.  Feel free to visit `Project.ede' to see how it
+changed the config file.
+
+   Compile the whole project again with `C-c . C' from `main.cpp'.  It
+should now compile.
+
+3.7 Step 7: Shared library dependency
+=====================================
+
+Note: Supporting shared libraries for Automake in this way is easy, but
+doing so from a project of type Makefile is a bit tricky.  If you are
+creating shared libraries too, stick to Automake projects.
+
+   Next, lets add a dependency from `main.cpp' on our shared library.
+To do that, update main like this:
+
+     int main() {
+
+       my_lib_function();
+
+     }
+
+   Now compile with:
+
+     C-c . c
+
+   where the lower case `c' compiles just that target.  You should see
+an error.
+
+   This time, we need to add a dependency from `main.cpp' on our shared
+library.  To do that, we need to customize our target instead of the
+project.  This is because variables such as the include path are
+treated globally, whereas dependencies for a target are target specific.
+
+     M-x customize-target RET
+
+   On the first page, you will see an Ldlibs-local section.  Add mylib
+to it by first clicking `[INS]', and they adding the library.  It
+should look like this:
+
+     Ldlibs-Local :
+     [INS] [DEL] Local Library: libmylib.la
+     [INS]
+     Libraries that are part of this project. [Hide Rest]
+     The full path to these libraries should be specified, such as:
+     ../lib/libMylib.la  or ../ar/myArchive.a
+
+   You will also see other variables for library related flags and
+system libraries if you need them.  Click `[Accept]', and from
+`main.cpp', again compile the whole project to force all dependent
+elements to compile:
+
+     C-c . C
+
+3.8 Step 8: Run your program
+============================
+
+You can run your program directly from EDE.
+
+     C-c . R RET RET
+
+   If your program takes command line arguments, you can type them in
+when it offers the command line you want to use to run your program.
+
+
+File: ede.info,  Node: Creating a project,  Next: Modifying your project,  Prev: Quick Start,  Up: Top
+
+4 Creating a project
 ********************
 
-To create a new project, first load a file you would want in that
-project into a buffer.  If you have a hierarchy of directories, choose
-a file in the topmost directory first.  From this buffer, run `ede-new'.
+_Note:_ It is not necessary to Create a project as described below to
+use EDE.  Some kinds of projects are autodetected, such as projects
+that use Automake, Emacs, or Linux.  See *Note Simple projects::.
+
+   To create a new project that will also create Makefiles for you,
+first load a file you would want in that project into a buffer.  If you
+have a hierarchy of directories, choose a file in the topmost directory
+first.  From this buffer, run `ede-new'.
 
    EDE can support several types of projects.  When creating a new
 project with the command `ede-new' you must choose the type of project
 you would like to create.  *Note Project types::.
 
-   Each type has it's own benefits or language specific enhancements.
+   Each type has its own benefits or language specific enhancements.
 You will be prompted for the type of project you would like to create.
 The simplest and most language agnostic project type is _Make_.  A
 derivation of this is the `Automake' type.
@@ -123,7 +389,7 @@ you.
 libraries, such as semantic, can take advantage of some core EDE APIs,
 then you can use some simpler projects.  See  *Note Simple projects::.
 
-3.1 Creating a subproject
+4.1 Creating a subproject
 =========================
 
 A subproject is merely a project in a subdirectory of another project.
@@ -140,7 +406,7 @@ on that project's type.
 
 File: ede.info,  Node: Modifying your project,  Next: Building and Debugging,  Prev: Creating a project,  Up: Top
 
-4 Modifying your project
+5 Modifying your project
 ************************
 
 Your project and targets are systems with lots of options.  Generic
@@ -153,12 +419,13 @@ using.
 * Add/Remove target::
 * Add/Remove files::
 * Customize Features::
+* Project Local Variables::
 * EDE Project Features::
 
 
 File: ede.info,  Node: Add/Remove target,  Next: Add/Remove files,  Prev: Modifying your project,  Up: Modifying your project
 
-4.1 Add/Remove target
+5.1 Add/Remove target
 =====================
 
 A project with no targets isn't very useful, so you can use EDE to add
@@ -180,7 +447,7 @@ menu.
 
 File: ede.info,  Node: Add/Remove files,  Next: Customize Features,  Prev: Add/Remove target,  Up: Modifying your project
 
-4.2 Add/Remove files
+5.2 Add/Remove files
 ====================
 
 A target with no files isn't very useful, so you can use EDE to add and
@@ -203,12 +470,12 @@ to add it to a target, you can choose `none'.  You can customize the
 behavior with the variable `ede-auto-add-method'.
 
 
-File: ede.info,  Node: Customize Features,  Next: EDE Project Features,  Prev: Add/Remove files,  Up: Modifying your project
+File: ede.info,  Node: Customize Features,  Next: Project Local Variables,  Prev: Add/Remove files,  Up: Modifying your project
 
-4.3 Customize Features
+5.3 Customize Features
 ======================
 
-A project, and it's targets, are objects using the `EIEIO' object
+A project, and its targets, are objects using the `EIEIO' object
 system. *Note (eieio)EIEIO::.  These objects have data fields containing
 important information related to your work.
 
@@ -225,9 +492,47 @@ object, you can edit the file.  Use the command `ede-edit-file-target'
 bound to `C-c . e'.
 
 
-File: ede.info,  Node: EDE Project Features,  Prev: Customize Features,  Up: Modifying your project
+File: ede.info,  Node: Project Local Variables,  Next: EDE Project Features,  Prev: Customize Features,  Up: Modifying your project
 
-4.4 EDE Project Features
+5.4 Project Local Variables
+===========================
+
+EDE projects can store and manager project local variables.  The
+variables are stored in the project, and will be restored when a
+project reloads.
+
+   Projects which are not stored on disk WILL NOT restore your project
+local variables later.
+
+   You can use *note Customize Features:: to of the project to edit the
+project local variables.  They are under the 'Settings' group as
+"Project Local Variables".
+
+   You can also use `M-x ede-set' to set a new variable local in the
+mini buffer.
+
+   In multi-level projects such as Automake and Make generating
+projects, project local variables are installed from both the TOP most
+project, and the local directory's project.  In that way, you can have
+some variables across your whole project, and some specific to a
+subdirectory.
+
+   You can use project local variables to set any Emacs variable so that
+buffers belonging to different projects can have different settings.
+
+   NOTE: When you use project-local variables with *note ede-cpp-root::,
+the format is an association list.  For example:
+
+     (ede-cpp-root-project "SOMENAME"
+                            :file "/dir/to/some/file"
+                            :local-variables
+                            '((grep-command . "grep -nHi -e ")
+                              (compile-command . "make -f MyCustomMakefile all")))
+
+
+File: ede.info,  Node: EDE Project Features,  Prev: Project Local Variables,  Up: Modifying your project
+
+5.5 EDE Project Features
 ========================
 
 This section details user facing features of an EDE `Make' style
@@ -250,7 +555,7 @@ in EIEIO objects.  If you are interested in additional details, see
 
 File: ede.info,  Node: Changing Compilers and Flags,  Next: Configurations,  Prev: EDE Project Features,  Up: EDE Project Features
 
-4.4.1 Changing Compilers and Flags
+5.5.1 Changing Compilers and Flags
 ----------------------------------
 
 Targets that build stuff need compilers.  To change compilers, you need
@@ -272,7 +577,7 @@ to modify, you can add a configuration for it.  *note Configurations::.
 
 File: ede.info,  Node: Configurations,  Prev: Changing Compilers and Flags,  Up: EDE Project Features
 
-4.4.2 Configurations
+5.5.2 Configurations
 --------------------
 
 Configurations specify different ways to build a project.  For example,
@@ -295,7 +600,7 @@ for "configurations".  Add a new named configuration here.
 
 File: ede.info,  Node: Building and Debugging,  Next: Miscellaneous commands,  Prev: Modifying your project,  Up: Top
 
-5 Building and Debugging
+6 Building and Debugging
 ************************
 
 EDE assumes you are writing some sort of program, so it attempts to
@@ -323,10 +628,10 @@ in the `Project' menu.
 
 File: ede.info,  Node: Miscellaneous commands,  Next: Project types,  Prev: Building and Debugging,  Up: Top
 
-6 Miscellaneous commands
+7 Miscellaneous commands
 ************************
 
-6.1 Rescan
+7.1 Rescan
 ==========
 
 If you opt to go in and edit EDE project files directly, perhaps with
@@ -335,7 +640,7 @@ project files to update the internal data structures.
 
    Use `ede-rescan-toplevel' bound to `C-c . g' to refresh your system.
 
-6.2 EDE Find File
+7.2 EDE Find File
 =================
 
 EDE can help you find files in your project.  Use `ede-find-file' bound
@@ -352,7 +657,7 @@ variable `ede-locate-setup-options' to help EDE find external tools.
      project, then the next one is tried.  It is always assumed that
      "ede-locate-base" is at end of the list.
 
-6.3 Speedbar
+7.3 Speedbar
 ============
 
 EDE also supports the speedbar package.  While speedbar works great
@@ -368,7 +673,7 @@ files as grouped by target.
 
 File: ede.info,  Node: Project types,  Next: Extending EDE,  Prev: Miscellaneous commands,  Up: Top
 
-7 Project types
+8 Project types
 ***************
 
 There are currently three types of project modes.  One is
@@ -390,12 +695,14 @@ that use EDE to look up files.
 
 * Make and Automake projects::  Project types of `ede-project'
 * Automake direct projects::    Project interface on hand-written automake files.
+* Android projects::            Projects for Android development
+* Arduino projects::            Projects for Arduino sketches
 * Simple projects::             Projects EDE doesn't manage.
 
 
 File: ede.info,  Node: Make and Automake projects,  Next: Automake direct projects,  Up: Project types
 
-7.1 Make and Automake projects
+8.1 Make and Automake projects
 ==============================
 
 A project of `ede-project' type creates a file called `Project.ede' in
@@ -407,9 +714,9 @@ bootstrapping routines will also import and maintain a configure.am
 script and a host of other files required by Automake.
 
 
-File: ede.info,  Node: Automake direct projects,  Next: Simple projects,  Prev: Make and Automake projects,  Up: Project types
+File: ede.info,  Node: Automake direct projects,  Next: Android projects,  Prev: Make and Automake projects,  Up: Project types
 
-7.2 Automake direct projects
+8.2 Automake direct projects
 ============================
 
 The project type that reads `Makefile.am' directly is derived from the
@@ -420,9 +727,45 @@ automatically, or create new ones.  As such, it is useful as a browsing
 tool, or as maintenance in managing file lists.
 
 
-File: ede.info,  Node: Simple projects,  Prev: Automake direct projects,  Up: Project types
+File: ede.info,  Node: Android projects,  Next: Arduino projects,  Prev: Automake direct projects,  Up: Project types
 
-7.3 Simple Projects
+8.3 Android projects
+====================
+
+An Android project of type `ede-android-project' will detect and
+support development of Android apps.  Android projects use an
+`AndroidManifest.xml' file.  Always load your Manifest first in a
+running Emacs to make sure the project is identified correctly.
+
+   Android projects can be created with `ede-new' but depend on a
+correctly configured Android SDK via CEDET support.
+
+ -- Function: cedet-android-sdk-root
+     The root to the android SDK.
+
+   Android projects support different configurations including compile,
+and install, which will upload a program to your Android device.  It
+also supports several debugging tools via `android.el'.
+
+
+File: ede.info,  Node: Arduino projects,  Next: Simple projects,  Prev: Android projects,  Up: Project types
+
+8.4 Arduino projects
+====================
+
+An arduino project of type `ede-arduino-project' will read your
+`~/.arduino/preferences.txt' file, and identify your sketches.  You
+will still need the Arduino IDE to set up your preferences and locate
+your arduino.  After quiting the IDE, Emacs will be able to find your
+sketches, compile them, and upload them to your arduino.
+
+   If you have the `arduino' command on your path, EDE will be able to
+find your SDK and compile your programs.
+
+
+File: ede.info,  Node: Simple projects,  Prev: Arduino projects,  Up: Project types
+
+8.5 Simple Projects
 ===================
 
 There can be a wide array of Simple projects.  The root for simple
@@ -440,16 +783,105 @@ lookup for semantic, improving code completion performance.
 
 * Menu:
 
+* Generic::             Detect generic Make, SCons or CMake projects
+* Add Generic Support:: Support more build types with Generic projects
 * ede-cpp-root::        This project marks the root of a C/C++ code project.
-* ede-simple subclassing:: Create your own simple project.
-* ede-emacs::		A project for working with Emacs.
-* ede-linux::		A project for working with Linux kernels.
+* ede-emacs::           A project for working with Emacs.
+* ede-linux::           A project for working with Linux kernels.
 * Custom Locate::       Customizing how to locate files in a simple project
 
 
-File: ede.info,  Node: ede-cpp-root,  Next: ede-simple subclassing,  Up: Simple projects
+File: ede.info,  Node: Generic,  Next: Add Generic Support,  Up: Simple projects
 
-7.3.1 ede-cpp-root
+8.5.1 Generic Projects
+----------------------
+
+The Generic project system provides a way for EDE to identify a project
+based on the build system.  Simple aspects of how this project builds
+or interacts with semantic can be done via the Customize interface.
+
+   For C++ projects, even if the build system is supported by Generic,
+may want to use *note ede-cpp-root:: which has addtional options for
+C/C++.
+
+   Generic projects are new, and disabled by default to prevent possible
+conflicts with other types of projects, to enable them, use
+`ede-enable-generic-projects'.
+
+ -- Function: ede-enable-generic-projects
+     Enable generic project loaders.
+
+   When a generic project identifies your code, you can use:
+
+     M-x ede-customize-project
+
+   to create an customization buffer and edit any configuration items
+for your project.  It will save the configuration in `EDEConfig.el' at
+the root of your project.
+
+   Generic projects also support *note Building and Debugging:: for the
+different project types.
+
+
+File: ede.info,  Node: Add Generic Support,  Next: ede-cpp-root,  Prev: Generic,  Up: Simple projects
+
+8.5.2 Add Generic Support for new build systems
+-----------------------------------------------
+
+The Generic EDE project type can support almost any kind of build
+system.  To add support for a new build system using the Generic type
+is pretty easy.  Here is an example for supporting SCons:
+
+     ;;; SCONS
+     (defclass ede-generic-scons-project (ede-generic-project)
+       ((buildfile :initform "SConstruct")
+        )
+       "Generic Project for scons.")
+
+     (defmethod ede-generic-setup-configuration ((proj ede-generic-scons-project) config)
+       "Setup a configuration for SCONS."
+       (oset config build-command "scons")
+       (oset config debug-command "gdb ")
+       )
+
+   The first block of code creates a new class for the SCons project
+type.  It inherits from `ede-generic-project'.  The only configuration
+really needed is to specify the initial value for the `buildfile' slot.
+This is `SConstruct' for SCons, and is `Makefile' for supporting Make.
+
+   The second thing to do is implement a method for your build system
+that will setup the Configuration.  Each generic project gets a common
+Configuration object which contains details on how to work with the
+different kinds of Source code.  It also contains the build and debug
+commands which should be setup here.  These are the defaults.  A user
+of your generic project can customize the configuration and change
+these values later.
+
+   Once the class is created, it needs to be registered.  If you wish to
+permanently add this to ede-generic.el, then you would edit
+`ede-enable-generic-projects'.  If you write support just for you, you
+would add a line of code like this example from SCons.
+
+     (ede-generic-new-autoloader "edeproject-scons" "SCons"
+     			    "SConstruct" 'ede-generic-scons-project)
+
+   Adding a generic autoloader tells EDE how to identify, and
+automatically create your project.
+
+ -- Function: ede-generic-new-autoloader internal-name external-name
+          projectfile class
+     Add a new EDE Autoload instance for identifying a generic project.
+     INTERNAL-NAME is a long name that identifies thsi project type.
+     EXTERNAL-NAME is a shorter human readable name to describe the
+     project.  PROJECTFILE is a file name that identifies a project of
+     this type to EDE, such as a Makefile, or SConstruct file.  CLASS
+     is the EIEIO class that is used to track this project.  It should
+     subclass the class "ede-generic-project" project.
+
+
+File: ede.info,  Node: ede-cpp-root,  Next: ede-emacs,  Prev: Add Generic Support,  Up: Simple projects
+
+8.5.3 ede-cpp-root
 ------------------
 
 The `ede-cpp-root' project type will allow you to create a single
@@ -524,6 +956,12 @@ NAME
 DIR
      The directory root for this cpp-root project.
 
+   When creating a project with `ede-cpp-root', you can get additional
+configurations via *note Project Local Variables::.  Be aware that the
+format for project local variables is an association list.  You cannot
+use `M-x ede-set' and have your project local variables persist between
+sessions.
+
    If the cpp-root project style is right for you, but you want a
 dynamic loader, instead of hard-coding path name values in your
 `.emacs', you can do that too, but you will need to write some lisp
@@ -555,32 +993,22 @@ EDE how to load your project pattern
        )
 
      (add-to-list 'ede-project-class-files
-     	     (ede-project-autoload "cpp-root"
-     	      :name "CPP ROOT"
-     	      :file 'ede-cpp-root
-     	      :proj-file 'MY-FILE-FOR-DIR
+                  (ede-project-autoload "cpp-root"
+                   :name "CPP ROOT"
+                   :file 'ede-cpp-root
+                   :proj-file 'MY-FILE-FOR-DIR
                    :proj-root 'MY-ROOT-FCN
-     	      :load-type 'MY-LOAD
-     	      :class-sym 'ede-cpp-root)
-     	     t)
+                   :load-type 'MY-LOAD
+                   :class-sym 'ede-cpp-root)
+                  t)
 
    This example only creates an auto-loader, and does not create a new
 kind of project.
 
 
-File: ede.info,  Node: ede-simple subclassing,  Next: ede-emacs,  Prev: ede-cpp-root,  Up: Simple projects
+File: ede.info,  Node: ede-emacs,  Next: ede-linux,  Prev: ede-cpp-root,  Up: Simple projects
 
-7.3.2 ede-simple Subclassing
-----------------------------
-
-todo - Write some doc.
-
-   In the meantime look in the commentary of ede-simple.el
-
-
-File: ede.info,  Node: ede-emacs,  Next: ede-linux,  Prev: ede-simple subclassing,  Up: Simple projects
-
-7.3.3 ede-emacs
+8.5.4 ede-emacs
 ---------------
 
 The `ede-emacs' project will automatically identify an Emacs source
@@ -592,7 +1020,7 @@ and has an optimized include file identification function.
 
 File: ede.info,  Node: ede-linux,  Next: Custom Locate,  Prev: ede-emacs,  Up: Simple projects
 
-7.3.4 ede-linux
+8.5.5 ede-linux
 ---------------
 
 The `ede-linux' project will automatically identify a Linux Kernel
@@ -604,7 +1032,7 @@ parsing, and has an optimized include file identification function.
 
 File: ede.info,  Node: Custom Locate,  Prev: ede-linux,  Up: Simple projects
 
-7.3.5 Custom Locate
+8.5.6 Custom Locate
 -------------------
 
 The various simple project styles all have one major drawback, which is
@@ -643,17 +1071,61 @@ See the code in `ede-locate.el' for GNU Global as a simple example.
 
 File: ede.info,  Node: Extending EDE,  Next: Project,  Prev: Project types,  Up: Top
 
-8 Extending EDE
+9 Extending EDE
 ***************
 
 This chapter is intended for users who want to write new parts or fix
 bugs in EDE.  A knowledge of Emacs Lisp, and some EIEIO(CLOS) is
 required.
 
-   EDE's dependency on EIEIO, the CLOS package for Emacs lets EDE define
-two object superclasses, specifically the PROJECT and TARGET.  All
-commands in EDE are usually meant to address the current project, or
-current target.
+   If you are in this chapter because you need to enhance or fix EDE,
+here are some suggestions:
+
+EDE doesn't recognize your project
+     In this case, you will need to read *note Detecting a Project::.
+     If you think one of the existing project types should work, then
+     you will need to understand the detection process, then
+     investigate the project code to see what may be wrong.
+
+EDE doesn't support your project
+     In this case, you will need to read all the sections, though you
+     can skip those sections specific to the secions on sourcecode and
+     compiler/linker objects which are specific to the project type that
+     autogenerates Makefiles.
+
+EDE doesn't support your compiler/linker
+     For the EDE project types that build makefiles, you will want to
+     read the *note Compiler and Linker objects:: section.
+
+EDE doesn't support your language
+     For the EDE project types that build makefiles, you will need to
+     read the section on the `ede-proj-project', which is a project
+     type that will accept new types of languages, and build Makefiles
+     that support that language.
+
+* Menu:
+
+* Development Overview::        Overview for developers
+* Detecting a Project::         How EDE identifies projects
+* User interface methods::      Methods associated with keybindings
+* Base project methods::        The most basic methods on EDE objects.
+* EDE proj-project::            Extending Makefile generating project types.
+* Sourcecode objects::          Defining new sourcecode classes.
+* Compiler and Linker objects::  Defining new compilers and linkers.
+
+
+File: ede.info,  Node: Development Overview,  Next: Detecting a Project,  Up: Extending EDE
+
+9.1 Development Overview
+========================
+
+EDE is made up of a series of classes implemented with EIEIO.  These
+classes define an interface that can be used to create different types
+of projects.
+
+   EDE defines two superclasses which are `ede-project' and
+`ede-target'.  All commands in EDE are usually meant to address the
+current project, or current target.
 
    All specific projects in EDE derive subclasses of the EDE
 superclasses.  In this way, specific behaviors such as how a project is
@@ -664,38 +1136,151 @@ functional wrappers over these methods.  For details on different types
 of projects, *note Project types::.  *note (eieio)Top::. For details on
 using EIEIO to extending classes, and writing methods.
 
-   If you intend to extend EDE, it is most likely that a new target
-type is needed in one of the existing project types.  The rest of this
-chapter will discuss extending the `ede-project' class, and it's
-targets.  See `project-am.el' for basic details on adding targets to it.
+   Some example project types are:
 
-   For the `ede-project' type, the core target class is called
-`ede-proj-target'.  Inheriting from this will give you everything you
-need to start, including adding your sources into the makefile.  If you
-also need additional rules in the makefile, you will want to inherit
-from `ede-proj-target-makefile' instead.  You may want to also add new
-fields to track important information.
+`project-am'
+     Autmake project which reads existing Automake files.
 
-   If you are building currently unsupported code into a program or
-shared library, it is unlikely you need a new target at all.  Instead
-you would need to create a new compiler or linker object that compiles
-source code of the desired type. *note Compiler and Linker objects::.
+`ede-proj-project'
+     This project type will create `Makefiles', or `Makefile.am' files
+     to compile your project.
 
-   Once your new class exists, you will want to fill in some basic
-methods.  See the `ede-skel.el' file for examples of these.  The files
-`ede-proj-info.el' and `ede-proj-elisp.el' are two interesting examples.
+`ede-linux'
+     This project type will detect linux source trees.
 
-* Menu:
+`ede-emacs'
+     This proejct will detect an Emacs source tree.
 
-* User interface methods::      Methods associated with keybindings
-* Base project methods::        The most basic methods on EDE objects.
-* Sourcecode objects::          Defining new sourcecode classes.
-* Compiler and Linker objects::  Defining new compilers and linkers.
+   There are several other project types as well.
+
+   The first class you need to know to create a new project type is
+`ede-project-autoload'.  New instances of this class are needed to
+define how Emacs associates different files/buffers with different
+project types.  All the autoloads are kept in the variable
+`ede-project-class-files'.
+
+   The next most important class to know is `ede-project'.  This is the
+baseclass defines how all projects behave.  The basic pattern for a
+project is that there is one project per directory, and the topmost
+project or directory defines the project as a whole.
+
+   Key features of `ede-project' are things like name and version
+number.  It also holds a list of `ede-target' objects and a list of sub
+projects, or more `ede-project' objects.
+
+   New project types must subclass `ede-project' to add special
+behavior. New project types also need to subclass `ede-target' to add
+specialty behavior.
+
+   In this way, the common EDE interface is designed to work against
+`ede-project', and thus all subclasses.
+
+   `ede-project' subclasses `ede-project-placeholder'.  This is the
+minimum necessary project needed to be cached between runs of Emacs.
+This way, Emacs can track all projects ever seen, without loading those
+projects into memory.
+
+   Here is a high-level UML diagram for the EDE system created with
+COGRE..
+
+     +-----------------------+        +-----------------------+
+     |                       |        |ede-project-placeholder|
+     |ede-project-class-files|        +-----------------------+
+     |                       |        +-----------------------+
+     +-----------------------+        +-----------------------+
+                /\                                ^
+                \/                               /_\
+                 |                                |
+      +--------------------+                +-----------+         +----------+
+      |ede-project-autoload|                |ede-project|         |ede-target|
+      +--------------------+<>--------------+-----------+<>-------+----------+
+      +--------------------+                +-----------+         +----------+
+      +--------------------+                +-----------+         +----------+
+                                                  ^
+                                                 /_\
+                                                  |
+                            +---------------------+-----------------+
+                            |                     |                 |
+                            |                     |                 |
+                            |                     |                 |
+                   +----------------+   +-------------------+  +---------+
+                   |ede-proj-project|   |project-am-makefile|  |ede-emacs|
+                   +----------------+   +-------------------+  +---------+
+                   +----------------+   +-------------------+  +---------+
+                   +----------------+   +-------------------+  +---------+
 
 
-File: ede.info,  Node: User interface methods,  Next: Base project methods,  Prev: Extending EDE,  Up: Extending EDE
+File: ede.info,  Node: Detecting a Project,  Next: User interface methods,  Prev: Development Overview,  Up: Extending EDE
 
-8.1 User interface methods
+9.2 Detecting a Project
+=======================
+
+Project detection happens with the list of `ede-project-autoload'
+instances stored in `ede-project-class-files'.  The full project
+detection scheme works like this:
+
+Step 1:
+     `find-file-hooks' calls `ede-turn-on-hook' on BUFFER.
+
+Step 2:
+     `ede-turn-on-hook' turns on `ede-minor-mode'
+
+Step 3:
+     `ede-minor-mode' looks to see if BUFFER is associated with any
+     open projects.  If not, it calls `ede-load-project-file' to find a
+     project associated with the current directory BUFFER is in.
+
+Step 4:
+     `ede-minor-mode' associates the found project with the current
+     buffer with a series of variables, such as `ede-object', and
+     `ede-object-project' and `ede-object-root-project'.
+
+   Once a buffer is associated, EDE minor mode commands will operate on
+that buffer.
+
+   The function `ede-load-project-file' is at the heart of detecting
+projects, and it works by looping over all the known project autoload
+types in `ede-project-autoload' using the utility
+`ede-directory-project-p'.
+
+   The function `ede-directory-project-p' will call
+`ede-dir-to-projectfile' on every `ede-project-autoload' until one of
+them returns true.  The method `ede-dir-to-projectfile' in turn gets
+the `:proj-file' slot from the autoload.  If it is a string (ie, a
+project file name), it checks to see if that exists in BUFFER's
+directory.  If it is a function, then it calls that function and
+expects it to return a file name or nil.  If the file exists, then this
+directory is assumed to be part of a project, and
+`ede-directory-project-p' returns the instance of
+`ede-project-autoload' that matched.
+
+   If the current directory contains the file `.ede-ignore' then that
+directory is automatically assumed to contain no projects, even if
+there is a matching pattern.  Use this type of file in a directory that
+may contain many other sub projects, but still has a Makefile of some
+sort.
+
+   If the current directory is a project, then EDE scans upwards till
+it finds the top of the project.  It does this by calling
+`ede-toplevel-project'.  If this hasn't already been discovered, the
+directories as scanned upward one at a time until a directory with no
+project is found.  The last found project becomes the project root.  If
+the ofund instance of `ede-project-autoload' has a valid `proj-root'
+slot value, then that function is called instead of scanning the
+project by hand.  Some project types have a short-cut for determining
+the root of a project, so this comes in handy.
+
+   Getting back to `ede-load-project-file', this now has an instance of
+`ede-project-autoload'.  It uses the `load-type' slot to both autoload
+in the project type, and to create a new instance of the project type
+found for the root of the project.  That project is added to the global
+list of all projects.  All subprojects are then created and assembled
+into the project data structures.
+
+
+File: ede.info,  Node: User interface methods,  Next: Base project methods,  Prev: Detecting a Project,  Up: Extending EDE
+
+9.3 User interface methods
 ==========================
 
 These methods are core behaviors associated with user commands.  If you
@@ -736,9 +1321,9 @@ what you need.
      Rescan a project file, changing the data in the existing objects.
 
 
-File: ede.info,  Node: Base project methods,  Next: Sourcecode objects,  Prev: User interface methods,  Up: Extending EDE
+File: ede.info,  Node: Base project methods,  Next: EDE proj-project,  Prev: User interface methods,  Up: Extending EDE
 
-8.2 Base project methods
+9.4 Base project methods
 ========================
 
 These methods are important for querying base information from project
@@ -780,9 +1365,28 @@ and target types:
      List all documentation a project or target is responsible for.
 
 
-File: ede.info,  Node: Sourcecode objects,  Next: Compiler and Linker objects,  Prev: Base project methods,  Up: Extending EDE
+File: ede.info,  Node: EDE proj-project,  Next: Sourcecode objects,  Prev: Base project methods,  Up: Extending EDE
 
-8.3 Sourcecode objects
+9.5 EDE proj-project
+====================
+
+The EDE proj-project is a project type that will build Makefiles.  This
+project type stores data in a `Project.ede', and implements new user
+commands for building a Makefile.
+
+   This project type can be extended through the use of new Targets,
+*note Sourcecode objects::, or *note Compiler and Linker objects::.
+
+   This project type could also be extended to support alternate forms
+of build systems, though no documentation has been setup for this.
+
+   TODO - write more for this.  See cedet-devel mailing list for help
+here.
+
+
+File: ede.info,  Node: Sourcecode objects,  Next: Compiler and Linker objects,  Prev: EDE proj-project,  Up: Extending EDE
+
+9.6 Sourcecode objects
 ======================
 
 EDE projects track source file / target associates via source code
@@ -806,9 +1410,9 @@ object:
 
      (defvar ede-source-emacs
        (ede-sourcecode "ede-emacs-source"
-     		  :name "Emacs Lisp"
-     		  :sourcepattern "\\.el$"
-     		  :garbagepattern '("*.elc"))
+                       :name "Emacs Lisp"
+                       :sourcepattern "\\.el$"
+                       :garbagepattern '("*.elc"))
        "Emacs Lisp source code definition.")
 
    If you want to recycle parts of an existing sourcecode object, you
@@ -828,7 +1432,7 @@ different.  For example:
 
 File: ede.info,  Node: Compiler and Linker objects,  Prev: Sourcecode objects,  Up: Extending EDE
 
-8.4 Compiler and Linker objects
+9.7 Compiler and Linker objects
 ===============================
 
 In order for a target to create a `Makefile', it must know how to
@@ -883,7 +1487,7 @@ objects together.
 
    See `ede-proj-obj.el' for examples of the combination.
 
-8.5 Class hierarchies
+9.8 Class hierarchies
 =====================
 
 * Menu:
@@ -896,8 +1500,8 @@ objects together.
 
 File: ede.info,  Node: Project,  Next: Targets,  Prev: Extending EDE,  Up: Top
 
-9 Project
-*********
+10 Project
+**********
 
 * Menu:
 
@@ -916,8 +1520,8 @@ File: ede.info,  Node: Project,  Next: Targets,  Prev: Extending EDE,  Up: Top
 
 File: ede.info,  Node: ede-project-placeholder,  Next: ede-project,  Up: Project
 
-9.1 ede-project-placeholder
-===========================
+10.1 ede-project-placeholder
+============================
 
 Inheritance Tree:
 
@@ -961,21 +1565,21 @@ Slots:
 
 
 
-9.1.1 Specialized Methods
--------------------------
+10.1.1 Specialized Methods
+--------------------------
 
  -- Method: ede-project-inode :AFTER proj
      Get the inode of the directory project PROJ is in.
 
  -- Method: ede-project-root :AFTER this
-     If a project knows it's root, return it here.  Allows for
+     If a project knows its root, return it here.  Allows for
      one-project-object-for-a-tree type systems.
 
  -- Method: ede-find-subproject-for-directory :AFTER proj dir
      Find a subproject of PROJ that corresponds to DIR.
 
  -- Method: ede-project-root-directory :AFTER this &optional file
-     If a project knows it's root, return it here.  Allows for
+     If a project knows its root, return it here.  Allows for
      one-project-object-for-a-tree type systems.  Optional FILE is the
      file to test.  It is ignored in preference of the anchor file for
      the project.
@@ -995,8 +1599,8 @@ Slots:
 
 File: ede.info,  Node: ede-project,  Next: ede-cpp-root-project,  Prev: ede-project-placeholder,  Up: Project
 
-9.2 ede-project
-===============
+10.2 ede-project
+================
 
 Inheritance Tree:
 
@@ -1112,8 +1716,8 @@ Slots:
 
 
 
-9.2.1 Specialized Methods
--------------------------
+10.2.1 Specialized Methods
+--------------------------
 
  -- Method: ede-preprocessor-map :AFTER this
      Get the pre-processor map for project THIS.
@@ -1274,8 +1878,8 @@ Slots:
 
 File: ede.info,  Node: ede-cpp-root-project,  Next: ede-emacs-project,  Prev: ede-project,  Up: Project
 
-9.3 ede-cpp-root-project
-========================
+10.3 ede-cpp-root-project
+=========================
 
 Inheritance Tree:
 
@@ -1389,8 +1993,8 @@ Slots:
 
 
 
-9.3.1 Specialized Methods
--------------------------
+10.3.1 Specialized Methods
+--------------------------
 
  -- Method: initialize-instance :AFTER this &rest fields
      Make sure the `:file' is fully expanded.
@@ -1428,8 +2032,8 @@ Slots:
 
 File: ede.info,  Node: ede-emacs-project,  Next: ede-linux-project,  Prev: ede-cpp-root-project,  Up: Project
 
-9.4 ede-emacs-project
-=====================
+10.4 ede-emacs-project
+======================
 
 Inheritance Tree:
 
@@ -1476,8 +2080,8 @@ Slots:
 
 
 
-9.4.1 Specialized Methods
--------------------------
+10.4.1 Specialized Methods
+--------------------------
 
  -- Method: initialize-instance :AFTER this &rest fields
      Make sure the `:file' is fully expanded.
@@ -1502,8 +2106,8 @@ Slots:
 
 File: ede.info,  Node: ede-linux-project,  Next: ede-maven-project,  Prev: ede-emacs-project,  Up: Project
 
-9.5 ede-linux-project
-=====================
+10.5 ede-linux-project
+======================
 
 Inheritance Tree:
 
@@ -1550,8 +2154,8 @@ Slots:
 
 
 
-9.5.1 Specialized Methods
--------------------------
+10.5.1 Specialized Methods
+--------------------------
 
  -- Method: initialize-instance :AFTER this &rest fields
      Make sure the `:file' is fully expanded.
@@ -1576,8 +2180,8 @@ Slots:
 
 File: ede.info,  Node: ede-maven-project,  Next: ede-simple-project,  Prev: ede-linux-project,  Up: Project
 
-9.6 ede-maven-project
-=====================
+10.6 ede-maven-project
+======================
 
 Inheritance Tree:
 
@@ -1624,8 +2228,8 @@ Slots:
 
 
 
-9.6.1 Specialized Methods
--------------------------
+10.6.1 Specialized Methods
+--------------------------
 
  -- Method: initialize-instance :AFTER this &rest fields
      Make sure the `:targets' is setup.
@@ -1646,8 +2250,8 @@ Slots:
 
 File: ede.info,  Node: ede-simple-project,  Next: ede-simple-base-project,  Prev: ede-maven-project,  Up: Project
 
-9.7 ede-simple-project
-======================
+10.7 ede-simple-project
+=======================
 
 Inheritance Tree:
 
@@ -1694,8 +2298,8 @@ Slots:
 
 
 
-9.7.1 Specialized Methods
--------------------------
+10.7.1 Specialized Methods
+--------------------------
 
  -- Method: ede-find-subproject-for-directory :AFTER proj dir
      Return PROJ, for handling all subdirs below DIR.
@@ -1706,8 +2310,8 @@ Slots:
 
 File: ede.info,  Node: ede-simple-base-project,  Next: ede-proj-project,  Prev: ede-simple-project,  Up: Project
 
-9.8 ede-simple-base-project
-===========================
+10.8 ede-simple-base-project
+============================
 
 Inheritance Tree:
 
@@ -1733,8 +2337,8 @@ of subdirectories.
 
 File: ede.info,  Node: ede-proj-project,  Next: project-am-makefile,  Prev: ede-simple-base-project,  Up: Project
 
-9.9 ede-proj-project
-====================
+10.9 ede-proj-project
+=====================
 
 Inheritance Tree:
 
@@ -1834,8 +2438,8 @@ Slots:
 
 
 
-9.9.1 Specialized Methods
--------------------------
+10.9.1 Specialized Methods
+--------------------------
 
  -- Method: project-rescan :AFTER this
      Rescan the EDE proj project THIS.
@@ -1948,8 +2552,8 @@ Slots:
 
 File: ede.info,  Node: project-am-makefile,  Next: ede-step-project,  Prev: ede-proj-project,  Up: Project
 
-9.10 project-am-makefile
-========================
+10.10 project-am-makefile
+=========================
 
 Inheritance Tree:
 
@@ -1997,8 +2601,8 @@ Slots:
 
 
 
-9.10.1 Specialized Methods
---------------------------
+10.10.1 Specialized Methods
+---------------------------
 
  -- Method: project-rescan :AFTER this
      Rescan the makefile for all targets and sub targets.
@@ -2029,8 +2633,8 @@ Slots:
 
 File: ede.info,  Node: ede-step-project,  Prev: project-am-makefile,  Up: Project
 
-9.11 ede-step-project
-=====================
+10.11 ede-step-project
+======================
 
 Inheritance Tree:
 
@@ -2106,14 +2710,14 @@ Slots:
           Type: `(or null list)'
           Default Value: `(quote ("GNUmakefile.preamble"))'
 
-          The auxilliary makefile for additional variables.  Included
+          The auxiliary makefile for additional variables.  Included
           just before the specific target files.
 
     `:postamble'
           Type: `(or null list)'
           Default Value: `(quote ("GNUmakefile.postamble"))'
 
-          The auxilliary makefile for additional rules.  Included just
+          The auxiliary makefile for additional rules.  Included just
           after the specific target files.
 
     `:metasubproject'
@@ -2128,8 +2732,8 @@ Slots:
 
 
 
-9.11.1 Specialized Methods
---------------------------
+10.11.1 Specialized Methods
+---------------------------
 
  -- Method: project-rescan :AFTER this
      Rescan the EDE proj project THIS.
@@ -2187,7 +2791,7 @@ Slots:
 
 File: ede.info,  Node: Targets,  Next: Sourcecode,  Prev: Project,  Up: Top
 
-10 Targets
+11 Targets
 **********
 
 * Menu:
@@ -2230,7 +2834,7 @@ File: ede.info,  Node: Targets,  Next: Sourcecode,  Prev: Project,  Up: Top
 
 File: ede.info,  Node: ede-target,  Next: ede-cpp-root-target,  Up: Targets
 
-10.1 ede-target
+11.1 ede-target
 ===============
 
 Inheritance Tree:
@@ -2290,7 +2894,7 @@ Slots:
 
 
 
-10.1.1 Specialized Methods
+11.1.1 Specialized Methods
 --------------------------
 
  -- Method: ede-preprocessor-map :AFTER this
@@ -2377,7 +2981,7 @@ Slots:
      In sources for THIS, change version numbers to VERSION.
 
  -- Method: project-delete-target :AFTER ot
-     Delete the current target OT from it's parent project.
+     Delete the current target OT from its parent project.
 
  -- Method: ede-target-sourcecode :AFTER this
      Return the sourcecode objects which THIS permits.
@@ -2420,7 +3024,7 @@ Slots:
 
 File: ede.info,  Node: ede-cpp-root-target,  Next: ede-emacs-target-c,  Prev: ede-target,  Up: Targets
 
-10.2 ede-cpp-root-target
+11.2 ede-cpp-root-target
 ========================
 
 Inheritance Tree:
@@ -2454,7 +3058,7 @@ Slots:
 
 
 
-10.2.1 Specialized Methods
+11.2.1 Specialized Methods
 --------------------------
 
  -- Method: ede-preprocessor-map :AFTER this
@@ -2466,7 +3070,7 @@ Slots:
 
 File: ede.info,  Node: ede-emacs-target-c,  Next: ede-emacs-target-el,  Prev: ede-cpp-root-target,  Up: Targets
 
-10.3 ede-emacs-target-c
+11.3 ede-emacs-target-c
 =======================
 
 Inheritance Tree:
@@ -2500,7 +3104,7 @@ Slots:
 
 
 
-10.3.1 Specialized Methods
+11.3.1 Specialized Methods
 --------------------------
 
  -- Method: ede-preprocessor-map :AFTER this
@@ -2510,7 +3114,7 @@ Slots:
 
 File: ede.info,  Node: ede-emacs-target-el,  Next: ede-emacs-target-misc,  Prev: ede-emacs-target-c,  Up: Targets
 
-10.4 ede-emacs-target-el
+11.4 ede-emacs-target-el
 ========================
 
 Inheritance Tree:
@@ -2547,7 +3151,7 @@ Slots:
 
 File: ede.info,  Node: ede-emacs-target-misc,  Next: ede-linux-target-c,  Prev: ede-emacs-target-el,  Up: Targets
 
-10.5 ede-emacs-target-misc
+11.5 ede-emacs-target-misc
 ==========================
 
 Inheritance Tree:
@@ -2584,7 +3188,7 @@ Slots:
 
 File: ede.info,  Node: ede-linux-target-c,  Next: ede-linux-target-misc,  Prev: ede-emacs-target-misc,  Up: Targets
 
-10.6 ede-linux-target-c
+11.6 ede-linux-target-c
 =======================
 
 Inheritance Tree:
@@ -2618,7 +3222,7 @@ Slots:
 
 
 
-10.6.1 Specialized Methods
+11.6.1 Specialized Methods
 --------------------------
 
  -- Method: ede-preprocessor-map :AFTER this
@@ -2628,7 +3232,7 @@ Slots:
 
 File: ede.info,  Node: ede-linux-target-misc,  Next: ede-maven-target-java,  Prev: ede-linux-target-c,  Up: Targets
 
-10.7 ede-linux-target-misc
+11.7 ede-linux-target-misc
 ==========================
 
 Inheritance Tree:
@@ -2665,7 +3269,7 @@ Slots:
 
 File: ede.info,  Node: ede-maven-target-java,  Next: ede-maven-target-c,  Prev: ede-linux-target-misc,  Up: Targets
 
-10.8 ede-maven-target-java
+11.8 ede-maven-target-java
 ==========================
 
 Inheritance Tree:
@@ -2702,7 +3306,7 @@ Slots:
 
 File: ede.info,  Node: ede-maven-target-c,  Next: ede-maven-target-misc,  Prev: ede-maven-target-java,  Up: Targets
 
-10.9 ede-maven-target-c
+11.9 ede-maven-target-c
 =======================
 
 Inheritance Tree:
@@ -2739,7 +3343,7 @@ Slots:
 
 File: ede.info,  Node: ede-maven-target-misc,  Next: ede-simple-target,  Prev: ede-maven-target-c,  Up: Targets
 
-10.10 ede-maven-target-misc
+11.10 ede-maven-target-misc
 ===========================
 
 Inheritance Tree:
@@ -2776,7 +3380,7 @@ Slots:
 
 File: ede.info,  Node: ede-simple-target,  Next: ede-proj-target,  Prev: ede-maven-target-misc,  Up: Targets
 
-10.11 ede-simple-target
+11.11 ede-simple-target
 =======================
 
 Inheritance Tree:
@@ -2813,7 +3417,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target,  Next: ede-proj-target-makefile,  Prev: ede-simple-target,  Up: Targets
 
-10.12 ede-proj-target
+11.12 ede-proj-target
 =====================
 
 Inheritance Tree:
@@ -2881,7 +3485,7 @@ Slots:
 
 
 
-10.12.1 Specialized Methods
+11.12.1 Specialized Methods
 ---------------------------
 
  -- Method: project-compile-target :AFTER obj &optional command
@@ -2954,7 +3558,7 @@ Slots:
      `compiler' slot.  Converts all symbols into the objects to be used.
 
  -- Method: project-delete-target :AFTER this
-     Delete the current target THIS from it's parent project.
+     Delete the current target THIS from its parent project.
 
  -- Method: ede-proj-makefile-target-name :AFTER this
      Return the name of the main target for THIS target.
@@ -2990,7 +3594,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-makefile,  Next: semantic-ede-proj-target-grammar,  Prev: ede-proj-target,  Up: Targets
 
-10.13 ede-proj-target-makefile
+11.13 ede-proj-target-makefile
 ==============================
 
 Inheritance Tree:
@@ -3066,7 +3670,7 @@ Slots:
 
 
 
-10.13.1 Specialized Methods
+11.13.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-makefile-dependencies :AFTER this
@@ -3100,7 +3704,7 @@ Slots:
 
 File: ede.info,  Node: semantic-ede-proj-target-grammar,  Next: ede-proj-target-makefile-objectcode,  Prev: ede-proj-target-makefile,  Up: Targets
 
-10.14 semantic-ede-proj-target-grammar
+11.14 semantic-ede-proj-target-grammar
 ======================================
 
 Inheritance Tree:
@@ -3141,7 +3745,7 @@ Slots:
 
 
 
-10.14.1 Specialized Methods
+11.14.1 Specialized Methods
 ---------------------------
 
  -- Method: project-compile-target :AFTER obj
@@ -3166,7 +3770,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-makefile-objectcode,  Next: ede-proj-target-makefile-archive,  Prev: semantic-ede-proj-target-grammar,  Up: Targets
 
-10.15 ede-proj-target-makefile-objectcode
+11.15 ede-proj-target-makefile-objectcode
 =========================================
 
 Inheritance Tree:
@@ -3217,7 +3821,7 @@ Slots:
           *Note ede-proj-target-makefile::.
 
 
-10.15.1 Specialized Methods
+11.15.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-buffer-header-file :AFTER this buffer
@@ -3238,7 +3842,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-makefile-archive,  Next: ede-proj-target-makefile-program,  Prev: ede-proj-target-makefile-objectcode,  Up: Targets
 
-10.16 ede-proj-target-makefile-archive
+11.16 ede-proj-target-makefile-archive
 ======================================
 
 Inheritance Tree:
@@ -3282,7 +3886,7 @@ Slots:
 
 
 
-10.16.1 Specialized Methods
+11.16.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-makefile-insert-rules :AFTER this
@@ -3296,7 +3900,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-makefile-program,  Next: ede-proj-target-makefile-shared-object,  Prev: ede-proj-target-makefile-archive,  Up: Targets
 
-10.17 ede-proj-target-makefile-program
+11.17 ede-proj-target-makefile-program
 ======================================
 
 Inheritance Tree:
@@ -3363,7 +3967,7 @@ Slots:
 
 
 
-10.17.1 Specialized Methods
+11.17.1 Specialized Methods
 ---------------------------
 
  -- Method: project-debug-target :AFTER obj
@@ -3381,7 +3985,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-makefile-shared-object,  Next: ede-proj-target-elisp,  Prev: ede-proj-target-makefile-program,  Up: Targets
 
-10.18 ede-proj-target-makefile-shared-object
+11.18 ede-proj-target-makefile-shared-object
 ============================================
 
 Inheritance Tree:
@@ -3428,7 +4032,7 @@ Slots:
 
 
 
-10.18.1 Specialized Methods
+11.18.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-configure-add-missing :AFTER this
@@ -3453,7 +4057,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-elisp,  Next: ede-proj-target-elisp-autoloads,  Prev: ede-proj-target-makefile-shared-object,  Up: Targets
 
-10.19 ede-proj-target-elisp
+11.19 ede-proj-target-elisp
 ===========================
 
 Inheritance Tree:
@@ -3504,7 +4108,7 @@ Slots:
 
 
 
-10.19.1 Specialized Methods
+11.19.1 Specialized Methods
 ---------------------------
 
  -- Method: project-compile-target :AFTER obj
@@ -3533,7 +4137,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-elisp-autoloads,  Next: ede-proj-target-makefile-miscelaneous,  Prev: ede-proj-target-elisp,  Up: Targets
 
-10.20 ede-proj-target-elisp-autoloads
+11.20 ede-proj-target-elisp-autoloads
 =====================================
 
 Inheritance Tree:
@@ -3599,7 +4203,7 @@ Slots:
 
 
 
-10.20.1 Specialized Methods
+11.20.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-makefile-dependencies :AFTER this
@@ -3651,7 +4255,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-makefile-miscelaneous,  Next: ede-proj-target-makefile-info,  Prev: ede-proj-target-elisp-autoloads,  Up: Targets
 
-10.21 ede-proj-target-makefile-miscelaneous
+11.21 ede-proj-target-makefile-miscelaneous
 ===========================================
 
 Inheritance Tree:
@@ -3699,7 +4303,7 @@ Slots:
 
 
 
-10.21.1 Specialized Methods
+11.21.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-makefile-insert-rules :AFTER this
@@ -3714,7 +4318,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-makefile-info,  Next: ede-proj-target-aux,  Prev: ede-proj-target-makefile-miscelaneous,  Up: Targets
 
-10.22 ede-proj-target-makefile-info
+11.22 ede-proj-target-makefile-info
 ===================================
 
 Inheritance Tree:
@@ -3762,7 +4366,7 @@ Slots:
 
 
 
-10.22.1 Specialized Methods
+11.22.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-configure-add-missing :AFTER this
@@ -3804,7 +4408,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-aux,  Next: ede-proj-target-scheme,  Prev: ede-proj-target-makefile-info,  Up: Targets
 
-10.23 ede-proj-target-aux
+11.23 ede-proj-target-aux
 =========================
 
 Inheritance Tree:
@@ -3841,7 +4445,7 @@ Slots:
 
 
 
-10.23.1 Specialized Methods
+11.23.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-makefile-sourcevar :AFTER this
@@ -3850,7 +4454,7 @@ Slots:
 
 File: ede.info,  Node: ede-proj-target-scheme,  Next: project-am-target,  Prev: ede-proj-target-aux,  Up: Targets
 
-10.24 ede-proj-target-scheme
+11.24 ede-proj-target-scheme
 ============================
 
 Inheritance Tree:
@@ -3893,7 +4497,7 @@ Slots:
 
 
 
-10.24.1 Specialized Methods
+11.24.1 Specialized Methods
 ---------------------------
 
  -- Method: ede-proj-tweak-autoconf :AFTER this
@@ -3902,7 +4506,7 @@ Slots:
 
 File: ede.info,  Node: project-am-target,  Next: project-am-objectcode,  Prev: ede-proj-target-scheme,  Up: Targets
 
-10.25 project-am-target
+11.25 project-am-target
 =======================
 
 Inheritance Tree:
@@ -3943,7 +4547,7 @@ Slots:
 
 
 
-10.25.1 Specialized Methods
+11.25.1 Specialized Methods
 ---------------------------
 
  -- Method: project-compile-target :AFTER obj &optional command
@@ -3973,7 +4577,7 @@ Slots:
 
 File: ede.info,  Node: project-am-objectcode,  Next: project-am-program,  Prev: project-am-target,  Up: Targets
 
-10.26 project-am-objectcode
+11.26 project-am-objectcode
 ===========================
 
 Inheritance Tree:
@@ -4014,7 +4618,7 @@ Slots:
 
 
 
-10.26.1 Specialized Methods
+11.26.1 Specialized Methods
 ---------------------------
 
  -- Method: project-am-macro :AFTER this
@@ -4035,7 +4639,7 @@ Slots:
 
 File: ede.info,  Node: project-am-program,  Next: project-am-lib,  Prev: project-am-objectcode,  Up: Targets
 
-10.27 project-am-program
+11.27 project-am-program
 ========================
 
 Inheritance Tree:
@@ -4081,7 +4685,7 @@ Slots:
 
 
 
-10.27.1 Specialized Methods
+11.27.1 Specialized Methods
 ---------------------------
 
  -- Method: project-rescan :AFTER this
@@ -4090,7 +4694,7 @@ Slots:
 
 File: ede.info,  Node: project-am-lib,  Next: project-am-header,  Prev: project-am-program,  Up: Targets
 
-10.28 project-am-lib
+11.28 project-am-lib
 ====================
 
 Inheritance Tree:
@@ -4130,7 +4734,7 @@ Slots:
 
 
 
-10.28.1 Specialized Methods
+11.28.1 Specialized Methods
 ---------------------------
 
  -- Method: project-rescan :AFTER this
@@ -4139,7 +4743,7 @@ Slots:
 
 File: ede.info,  Node: project-am-header,  Next: project-am-header-noinst,  Prev: project-am-lib,  Up: Targets
 
-10.29 project-am-header
+11.29 project-am-header
 =======================
 
 Inheritance Tree:
@@ -4180,7 +4784,7 @@ Slots:
 
 
 
-10.29.1 Specialized Methods
+11.29.1 Specialized Methods
 ---------------------------
 
  -- Method: project-rescan :AFTER this
@@ -4189,7 +4793,7 @@ Slots:
 
 File: ede.info,  Node: project-am-header-noinst,  Next: project-am-header-inst,  Prev: project-am-header,  Up: Targets
 
-10.30 project-am-header-noinst
+11.30 project-am-header-noinst
 ==============================
 
 Inheritance Tree:
@@ -4230,7 +4834,7 @@ Slots:
 
 
 
-10.30.1 Specialized Methods
+11.30.1 Specialized Methods
 ---------------------------
 
  -- Method: project-am-macro :AFTER this
@@ -4239,7 +4843,7 @@ Slots:
 
 File: ede.info,  Node: project-am-header-inst,  Next: project-am-lisp,  Prev: project-am-header-noinst,  Up: Targets
 
-10.31 project-am-header-inst
+11.31 project-am-header-inst
 ============================
 
 Inheritance Tree:
@@ -4279,7 +4883,7 @@ Slots:
 
 
 
-10.31.1 Specialized Methods
+11.31.1 Specialized Methods
 ---------------------------
 
  -- Method: project-am-macro :AFTER this
@@ -4288,7 +4892,7 @@ Slots:
 
 File: ede.info,  Node: project-am-lisp,  Next: project-am-texinfo,  Prev: project-am-header-inst,  Up: Targets
 
-10.32 project-am-lisp
+11.32 project-am-lisp
 =====================
 
 Inheritance Tree:
@@ -4325,7 +4929,7 @@ Slots:
 
 
 
-10.32.1 Specialized Methods
+11.32.1 Specialized Methods
 ---------------------------
 
  -- Method: project-am-macro :AFTER this
@@ -4340,7 +4944,7 @@ Slots:
 
 File: ede.info,  Node: project-am-texinfo,  Next: project-am-man,  Prev: project-am-lisp,  Up: Targets
 
-10.33 project-am-texinfo
+11.33 project-am-texinfo
 ========================
 
 Inheritance Tree:
@@ -4383,7 +4987,7 @@ Slots:
 
 
 
-10.33.1 Specialized Methods
+11.33.1 Specialized Methods
 ---------------------------
 
  -- Method: project-am-macro :AFTER this
@@ -4406,7 +5010,7 @@ Slots:
 
 File: ede.info,  Node: project-am-man,  Prev: project-am-texinfo,  Up: Targets
 
-10.34 project-am-man
+11.34 project-am-man
 ====================
 
 Inheritance Tree:
@@ -4443,7 +5047,7 @@ Slots:
 
 
 
-10.34.1 Specialized Methods
+11.34.1 Specialized Methods
 ---------------------------
 
  -- Method: project-am-macro :AFTER this
@@ -4458,7 +5062,7 @@ Slots:
 
 File: ede.info,  Node: Sourcecode,  Next: Compilers,  Prev: Targets,  Up: Top
 
-11 Sourcecode
+12 Sourcecode
 *************
 
 The source code type is an object designed to associated files with
@@ -4471,7 +5075,7 @@ targets.
 
 File: ede.info,  Node: ede-sourcecode,  Up: Sourcecode
 
-11.1 ede-sourcecode
+12.1 ede-sourcecode
 ===================
 
 Inheritance Tree:
@@ -4532,7 +5136,7 @@ Slots:
 
 
 
-11.1.1 Specialized Methods
+12.1.1 Specialized Methods
 --------------------------
 
  -- Method: ede-want-any-files-p :AFTER this filenames
@@ -4561,7 +5165,7 @@ Slots:
 
 File: ede.info,  Node: Compilers,  Prev: Sourcecode,  Up: Top
 
-12 Compilers
+13 Compilers
 ************
 
 The compiler object is designed to associate source code with
@@ -4580,7 +5184,7 @@ commands.
 
 File: ede.info,  Node: ede-compilation-program,  Next: ede-compiler,  Up: Compilers
 
-12.1 ede-compilation-program
+13.1 ede-compilation-program
 ============================
 
 Inheritance Tree:
@@ -4639,7 +5243,7 @@ Slots:
           Type: `list'
 
           The commands used to execute this compiler.  The object which
-          uses this compiler will place these commands after it's rule
+          uses this compiler will place these commands after its rule
           definition.
 
     `:autoconf'
@@ -4660,7 +5264,7 @@ Slots:
 
 
 
-12.1.1 Specialized Methods
+13.1.1 Specialized Methods
 --------------------------
 
  -- Method: ede-proj-flush-autoconf :AFTER this
@@ -4687,7 +5291,7 @@ Slots:
 
 File: ede.info,  Node: ede-compiler,  Next: ede-object-compiler,  Prev: ede-compilation-program,  Up: Compilers
 
-12.2 ede-compiler
+13.2 ede-compiler
 =================
 
 Inheritance Tree:
@@ -4742,7 +5346,7 @@ Slots:
           Type: `list'
 
           The commands used to execute this compiler.  The object which
-          uses this compiler will place these commands after it's rule
+          uses this compiler will place these commands after its rule
           definition.
 
     `:objectextention'
@@ -4767,7 +5371,7 @@ Slots:
 
 
 
-12.2.1 Specialized Methods
+13.2.1 Specialized Methods
 --------------------------
 
  -- Method: ede-proj-makefile-insert-object-variables :AFTER this
@@ -4790,7 +5394,7 @@ Slots:
 
 File: ede.info,  Node: ede-object-compiler,  Next: semantic-ede-grammar-compiler-class,  Prev: ede-compiler,  Up: Compilers
 
-12.3 ede-object-compiler
+13.3 ede-object-compiler
 ========================
 
 Inheritance Tree:
@@ -4844,7 +5448,7 @@ Slots:
           Type: `list'
 
           The commands used to execute this compiler.  The object which
-          uses this compiler will place these commands after it's rule
+          uses this compiler will place these commands after its rule
           definition.
 
     `:objectextention'
@@ -4866,7 +5470,7 @@ Slots:
 
 
 
-12.3.1 Specialized Methods
+13.3.1 Specialized Methods
 --------------------------
 
  -- Method: ede-proj-makefile-insert-variables :AFTER this
@@ -4875,7 +5479,7 @@ Slots:
 
 File: ede.info,  Node: semantic-ede-grammar-compiler-class,  Next: ede-linker,  Prev: ede-object-compiler,  Up: Compilers
 
-12.4 semantic-ede-grammar-compiler-class
+13.4 semantic-ede-grammar-compiler-class
 ========================================
 
 Inheritance Tree:
@@ -4930,7 +5534,7 @@ Slots:
           Type: `list'
 
           The commands used to execute this compiler.  The object which
-          uses this compiler will place these commands after it's rule
+          uses this compiler will place these commands after its rule
           definition.
 
     `:objectextention'
@@ -4944,7 +5548,7 @@ Slots:
 
 File: ede.info,  Node: ede-linker,  Prev: semantic-ede-grammar-compiler-class,  Up: Compilers
 
-12.5 ede-linker
+13.5 ede-linker
 ===============
 
 Inheritance Tree:
@@ -4995,7 +5599,7 @@ Slots:
           Type: `list'
 
           The commands used to execute this compiler.  The object which
-          uses this compiler will place these commands after it's rule
+          uses this compiler will place these commands after its rule
           definition.
 
     `:objectextention'
@@ -5010,87 +5614,98 @@ Slots:
 
 Tag Table:
 Node: Top158
-Node: EDE Project Concepts1384
-Node: EDE Mode2998
-Node: Creating a project3804
-Node: Modifying your project5879
-Node: Add/Remove target6361
-Node: Add/Remove files7129
-Node: Customize Features8204
-Node: EDE Project Features9141
-Node: Changing Compilers and Flags9867
-Node: Configurations10824
-Node: Building and Debugging11708
-Node: Miscellaneous commands12453
-Ref: ede-locate-setup-options13359
-Node: Project types14113
-Node: Make and Automake projects15190
-Node: Automake direct projects15833
-Node: Simple projects16417
-Node: ede-cpp-root17473
-Node: ede-simple subclassing22224
-Node: ede-emacs22477
-Node: ede-linux22859
-Node: Custom Locate23241
-Node: Extending EDE24720
-Node: User interface methods27186
-Node: Base project methods28408
-Node: Sourcecode objects29775
-Node: Compiler and Linker objects31478
-Node: Project33974
-Node: ede-project-placeholder34369
-Node: ede-project36426
-Node: ede-cpp-root-project45924
-Node: ede-emacs-project50881
-Node: ede-linux-project52649
-Node: ede-maven-project54414
-Node: ede-simple-project56010
-Node: ede-simple-base-project57264
-Node: ede-proj-project57803
-Node: project-am-makefile64712
-Node: ede-step-project66845
-Node: Targets71481
-Node: ede-target72619
-Node: ede-cpp-root-target79077
-Node: ede-emacs-target-c79993
-Node: ede-emacs-target-el80855
-Node: ede-emacs-target-misc81528
-Node: ede-linux-target-c82209
-Node: ede-linux-target-misc83075
-Node: ede-maven-target-java83758
-Node: ede-maven-target-c84441
-Node: ede-maven-target-misc85112
-Node: ede-simple-target85793
-Node: ede-proj-target86455
-Node: ede-proj-target-makefile92732
-Node: semantic-ede-proj-target-grammar96148
-Node: ede-proj-target-makefile-objectcode97856
-Node: ede-proj-target-makefile-archive99728
-Node: ede-proj-target-makefile-program101166
-Node: ede-proj-target-makefile-shared-object103373
-Node: ede-proj-target-elisp105395
-Node: ede-proj-target-elisp-autoloads107605
-Node: ede-proj-target-makefile-miscelaneous111286
-Node: ede-proj-target-makefile-info112801
-Node: ede-proj-target-aux115524
-Node: ede-proj-target-scheme116429
-Node: project-am-target117479
-Node: project-am-objectcode119378
-Node: project-am-program120826
-Node: project-am-lib121830
-Node: project-am-header122727
-Node: project-am-header-noinst123715
-Node: project-am-header-inst124696
-Node: project-am-lisp125667
-Node: project-am-texinfo126722
-Node: project-am-man128209
-Node: Sourcecode129228
-Node: ede-sourcecode129446
-Node: Compilers132142
-Node: ede-compilation-program132593
-Node: ede-compiler135864
-Node: ede-object-compiler139003
-Node: semantic-ede-grammar-compiler-class141204
-Node: ede-linker143092
+Node: EDE Project Concepts1451
+Node: EDE Mode3065
+Node: Quick Start3864
+Node: Creating a project11292
+Node: Modifying your project13617
+Node: Add/Remove target14127
+Node: Add/Remove files14895
+Node: Customize Features15970
+Node: Project Local Variables16909
+Node: EDE Project Features18428
+Node: Changing Compilers and Flags19159
+Node: Configurations20116
+Node: Building and Debugging21000
+Node: Miscellaneous commands21745
+Ref: ede-locate-setup-options22651
+Node: Project types23405
+Node: Make and Automake projects24609
+Node: Automake direct projects25252
+Node: Android projects25837
+Ref: cedet-android-sdk-root26415
+Node: Arduino projects26648
+Node: Simple projects27246
+Node: Generic28393
+Ref: ede-enable-generic-projects29090
+Node: Add Generic Support29488
+Ref: ede-generic-new-autoloader31571
+Node: ede-cpp-root32048
+Node: ede-emacs37159
+Node: ede-linux37531
+Node: Custom Locate37913
+Node: Extending EDE39392
+Node: Development Overview41256
+Node: Detecting a Project45659
+Node: User interface methods48708
+Node: Base project methods49936
+Node: EDE proj-project51301
+Node: Sourcecode objects51993
+Node: Compiler and Linker objects53734
+Node: Project56230
+Node: ede-project-placeholder56627
+Node: ede-project58686
+Node: ede-cpp-root-project68188
+Node: ede-emacs-project73149
+Node: ede-linux-project74921
+Node: ede-maven-project76690
+Node: ede-simple-project78290
+Node: ede-simple-base-project79548
+Node: ede-proj-project80089
+Node: project-am-makefile87002
+Node: ede-step-project89139
+Node: Targets93777
+Node: ede-target94915
+Node: ede-cpp-root-target101372
+Node: ede-emacs-target-c102288
+Node: ede-emacs-target-el103150
+Node: ede-emacs-target-misc103823
+Node: ede-linux-target-c104504
+Node: ede-linux-target-misc105370
+Node: ede-maven-target-java106053
+Node: ede-maven-target-c106736
+Node: ede-maven-target-misc107407
+Node: ede-simple-target108088
+Node: ede-proj-target108750
+Node: ede-proj-target-makefile115026
+Node: semantic-ede-proj-target-grammar118442
+Node: ede-proj-target-makefile-objectcode120150
+Node: ede-proj-target-makefile-archive122022
+Node: ede-proj-target-makefile-program123460
+Node: ede-proj-target-makefile-shared-object125667
+Node: ede-proj-target-elisp127689
+Node: ede-proj-target-elisp-autoloads129899
+Node: ede-proj-target-makefile-miscelaneous133580
+Node: ede-proj-target-makefile-info135095
+Node: ede-proj-target-aux137818
+Node: ede-proj-target-scheme138723
+Node: project-am-target139773
+Node: project-am-objectcode141672
+Node: project-am-program143120
+Node: project-am-lib144124
+Node: project-am-header145021
+Node: project-am-header-noinst146009
+Node: project-am-header-inst146990
+Node: project-am-lisp147961
+Node: project-am-texinfo149016
+Node: project-am-man150503
+Node: Sourcecode151522
+Node: ede-sourcecode151740
+Node: Compilers154436
+Node: ede-compilation-program154887
+Node: ede-compiler158157
+Node: ede-object-compiler161295
+Node: semantic-ede-grammar-compiler-class163495
+Node: ede-linker165382
 
 End Tag Table

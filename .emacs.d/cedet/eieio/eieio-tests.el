@@ -1,10 +1,10 @@
 ;;; eieio-tests.el -- eieio tests routines
 
 ;;;
-;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2007, 2008, 2009 Eric M. Ludlam
+;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2005, 2006, 2007, 2008, 2009, 2010, 2012 Eric M. Ludlam
 ;;
 ;; Author: <zappo@gnu.org>
-;; RCS: $Id: eieio-tests.el,v 1.48 2009/08/30 01:01:31 zappo Exp $
+;; RCS: $Id: eieio-tests.el,v 1.50 2010-06-18 00:08:17 zappo Exp $
 ;; Keywords: oop, lisp, tools
 ;;
 ;; This program is free software; you can redistribute it and/or modify
@@ -138,7 +138,19 @@
     (error "defgeneric did not make a generic method."))
 
 (defmethod generic1 ((c class-a))
-  "Method on generic1.")
+  "Method on generic1."
+  'monkey)
+
+(defmethod generic1 (not-an-object)
+  "Method generic1 that can take a non-object."
+  not-an-object)
+
+(let ((ans-obj (generic1 (class-a "test")))
+      (ans-num (generic1 666)))
+  (when (not (eq ans-obj 'monkey))
+    (error "Specialized method called wrong method."))
+  (when (not (eq ans-num 666))
+    (error "Generic method called wrong method.")))
 
 ;;; Class with a static method
 ;;
@@ -292,12 +304,6 @@ METHOD is the method that was attempting to be called."
 ;; Try the self referencing test
 (oset a self a)
 (oset ab self ab)
-
-
-;;; Test the BEFORE, PRIMARY, and AFTER method tags.
-;;
-(let ((lib (locate-library  "eieio-test-methodinvoke.el")))
-  (load-file lib))
 
 ;;; Test value of a generic function call
 ;;
@@ -511,6 +517,56 @@ METHOD is the method that was attempting to be called."
     (error "Class allocatd slot thought bound when it is unbound."))
 
 
+;;; initforms that need to be evalled at construction time.
+(defvar eieio-test-permuting-value 1)
+(setq eieio-test-permuting-value 1)
+
+(defclass inittest nil
+  ((staticval :initform 1)
+   (symval :initform eieio-test-permuting-value)
+   (evalval :initform (symbol-value 'eieio-test-permuting-value))
+   (evalnow :initform (symbol-value 'eieio-test-permuting-value)
+	    :allocation :class)
+   )
+  "Test initforms that eval.")
+
+(setq eieio-test-permuting-value 2)
+
+(setq pvinit (inittest "permuteme"))
+
+(when (not (eq (oref pvinit staticval) 1))
+  (error "Error with initial value for staticval slot."))
+(when (not (eq (oref pvinit symval) 'eieio-test-permuting-value))
+  (error "Error with initial value for symval slot."))
+(when (not (eq (oref pvinit evalval) 2))
+  (error "Error with initial value for evalval slot."))
+(when (not (eq (oref pvinit evalnow) 1))
+  (error "Error with initial value for evalnow slot."))
+
+
+;;; Init forms with types that don't match the runnable.
+(defclass test-subordinate nil
+  ((text :initform "" :type string))
+  "Test class that will be a calculated value.")
+
+(defclass test-superior nil
+  ((sub :initform (test-subordinate "test")
+	:type test-subordinate))
+  "A class with an initform that creates a class.")
+
+(setq tests (test-superior "test"))
+
+(condition-case err
+    (progn
+      (defclass broken-init nil
+	((broken :initform 1
+		 :type string))
+	"This class should break.")
+      (error t))
+  (invalid-slot-type nil) ;; This is the error
+  (error (error "Wrong type of error thrown from broken init class.")))
+
+
 ;;; Inheritance status
 ;;
 (if (and
@@ -532,6 +588,19 @@ METHOD is the method that was attempting to be called."
      )
     nil
   (error "Inheritance tests: failed"))
+
+
+;;; List of object predicates
+;;
+(let ((listooa (list (class-ab "ab") (class-a "a")))
+      (listoob (list (class-ab "ab") (class-b "b")))
+      )
+  (unless (and (class-a-list-p listooa)
+	       (class-b-list-p listoob)
+	       (not (class-b-list-p listooa))
+	       (not (class-a-list-p listoob))
+	       t)
+    (error "Inheritance and list predicate tests: failed")))
 
 
 ;;; Slot parameter testing
@@ -947,49 +1016,6 @@ Subclasses to override slot attributes.")
 ;; CLOS form of make-instance
 (setq CLONETEST1 (make-instance 'class-a))
 (setq CLONETEST2 (clone CLONETEST1))
-
-
-;;; Test the persistent object, and object-write by side-effect.
-;;
-(defclass PO (eieio-persistent)
-  ((slot1 :initarg :slot1
-	  :initform 'moose
-	  :printer PO-slot1-printer)
-   (slot2 :initarg :slot2
-	  :initform "foo"))
-  "A Persistent object with two initializable slots.")
-
-(defun PO-slot1-printer (slotvalue)
-  "Print the slot value SLOTVALUE to stdout.
-Assume SLOTVALUE is a symbol of some sort."
-  (princ "(make-symbol \"")
-  (princ (symbol-name slotvalue))
-  (princ "\")")
-  nil)
-;;(PO-slot1-printer 'moose)
-
-(defvar PO1 nil)
-(setq PO1 (PO "persist" :slot1 'goose :slot2 "testing"
-	      :file (concat default-directory "test-p.el")))
-
-(eieio-persistent-save PO1)
-
-(let ((obj (eieio-persistent-read "test-p.el")))
-  (message "%S" obj)
-  )
-
-
-(let* ((find-file-hooks nil)
-       (tbuff (find-file-noselect "test-p.el"))
-       )
-  (condition-case nil
-      (unwind-protect
-	  (save-excursion
-	    (set-buffer tbuff)
-	    (goto-char (point-min))
-	    (re-search-forward ":slot1 (make-symbol"))
-	(kill-buffer tbuff))
-    (error "PO's Slot1 printer function didn't work.")))
 
 
 ;;; Test the instance tracker

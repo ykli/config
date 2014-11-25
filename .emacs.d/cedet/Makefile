@@ -1,11 +1,12 @@
 ## Makefile --- Definition file for building CEDET
 ##
-## Copyright (C) 2003, 2004, 2005, 2007, 2008, 2009 by David Ponce
+## Copyright (C) 2005, 2007, 2008, 2009, 2010, 2011, 2012 by Eric M. Ludlam
+## Copyright (C) 2003, 2004  by David Ponce
 ##
 ## Author: David Ponce <david@dponce.com>
 ## Maintainer: CEDET developers <http://sf.net/projects/cedet>
 ## Created: 12 Sep 2003
-## X-RCS: $Id: Makefile,v 1.25 2009/08/08 21:48:32 zappo Exp $
+## X-RCS: $Id: Makefile,v 1.27 2010-04-23 00:04:39 zappo Exp $
 ##
 ## This program is free software; you can redistribute it and/or
 ## modify it under the terms of the GNU General Public License as
@@ -43,7 +44,7 @@ $(CEDET_ELISP_PACKAGES) \
 tests
 
 ## Path to your Emacs
-EMACS=emacs
+EMACS?=emacs
 EMACSFLAGS=-batch --no-site-file
 
 ## Your shell (On Windows/Cygwin I recommend to use bash)
@@ -63,7 +64,7 @@ INSTALL_INFO=ginstall-info
 ############### Internal part of the Makefile ###############
 CEDET_VERSION=$(shell grep "defconst cedet-version" common/cedet.el | cut -d " " -f 3)
 
-CEDET_FILES=Makefile INSTALL cedet-build.el cedet-update-version.el PRERELEASE_CHECKLIST USING_CEDET_FROM_CVS
+CEDET_FILES=Makefile INSTALL cedet-build.el cedet-update-version.el NEWS PRERELEASE_CHECKLIST USING_CEDET_FROM_BZR
 DIST_ROOT=cedet-$(CEDET_VERSION)
 DIST_DIR=$(CEDET_HOME)/$(DIST_ROOT)
 DIST_FILE=$(DIST_DIR).tar.gz
@@ -148,6 +149,8 @@ itest:
 	cd tests; ./cit-test.sh Make
 	cd tests; ./cit-test.sh Automake
 	cd tests; ./cit-test.sh GNUStep
+	cd tests; ./cit-test.sh Android
+	cd tests; ./cit-test.sh Arduino
 
 ### Install info files
 ## Thanks Stefano Sabatini for the info install patch.
